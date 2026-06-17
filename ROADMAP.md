@@ -16,11 +16,13 @@ Legende: `[ ]` offen · `[~]` in Arbeit · `[x]` fertig
 
 ### Phase 1 — Repo-Gerüst & Infrastruktur
 
-- [ ] `docker-compose.yml` (`mosquitto` + `app`, Volumes, Ports)
-- [ ] `mosquitto/config/mosquitto.conf` (Listener + Username/Passwort-Auth)
-- [ ] `.env.example` (`DASHBOARD_PASSWORD`, `MQTT_USERNAME`, `MQTT_PASSWORD`)
-- [ ] `.gitignore`
-- [ ] `server/Dockerfile`, `server/requirements.txt`
+- [x] `docker-compose.yml` (`mosquitto` + `app`, Volumes, Ports)
+- [x] `mosquitto/config/mosquitto.conf` (Listener + Username/Passwort-Auth) +
+      `mosquitto/entrypoint.sh` (Passwortdatei aus Env generieren)
+- [x] `.env.example` (`DASHBOARD_PASSWORD`, `MQTT_USERNAME`, `MQTT_PASSWORD`)
+- [x] `.gitignore`
+- [x] `server/Dockerfile`, `server/requirements.txt`
+- [x] `server/app/main.py` (minimaler Platzhalter `/healthz` + `/`, in Phase 2 ersetzt)
 
 ### Phase 2 — Server-Kern
 
@@ -69,9 +71,19 @@ Legende: `[ ]` offen · `[~]` in Arbeit · `[x]` fertig
 
 ## Was als Nächstes
 
-→ **Phase 1**: Repo-Gerüst + Docker-Compose + Mosquitto-Config anlegen.
+→ **Phase 2**: Server-Kern — SQLite-Schema (`app/db.py`), MQTT-Ingest (`app/mqtt.py`),
+Belegungslogik (Türen-als-Kanten), Auth, REST-API und CSV-Export. Ersetzt den
+Platzhalter in `app/main.py`.
+
+Hinweis: In dieser Umgebung läuft kein Docker-Daemon — `docker compose build`/`up` muss
+auf einem Host mit Daemon ausgeführt werden. `docker compose config` + Syntax-/Resolver-
+Checks sind grün.
 
 ## Session-Log
 
 - 2026-06-17: Projekt geplant, Architektur festgelegt (MQTT/Mosquitto, FastAPI+SQLite,
-  Passwortschutz). Phase 0 (CLAUDE.md + ROADMAP.md) erstellt.
+  Passwortschutz). Phase 0 (CLAUDE.md + ROADMAP.md) erstellt. PR #1 gemerged.
+- 2026-06-17: Phase 1 umgesetzt — Docker-Compose (mosquitto + app), Mosquitto mit
+  Passwort-Auth via Entrypoint, `.env.example`, `.gitignore`, Server-Container
+  (Dockerfile + requirements) und Platzhalter-App. `docker compose config` valide,
+  Dependencies aufgelöst (FastAPI 0.115, uvicorn 0.32, paho-mqtt 2.1).

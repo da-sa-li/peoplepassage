@@ -1,0 +1,35 @@
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2
+    restart: unless-stopped
+    environment:
+      MQTT_USERNAME: ${MQTT_USERNAME}
+      MQTT_PASSWORD: ${MQTT_PASSWORD}
+    entrypoint: ["/bin/sh", "/entrypoint.sh"]
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto/config/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./mosquitto/entrypoint.sh:/entrypoint.sh:ro
+      - mosquitto_data:/mosquitto/data
+
+  app:
+    build: ./server
+    restart: unless-stopped
+    depends_on:
+      - mosquitto
+    environment:
+      MQTT_HOST: mosquitto
+      MQTT_PORT: "1883"
+      MQTT_USERNAME: ${MQTT_USERNAME}
+      MQTT_PASSWORD: ${MQTT_PASSWORD}
+      DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD}
+      DB_PATH: /data/peoplepassage.db
+    ports:
+      - "8000:8000"
+    volumes:
+      - app_data:/data
+
+volumes:
+  mosquitto_data:
+  app_data:

@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# Env / Secrets
+.env
+mosquitto/config/passwd
+
+# Daten / DB
+*.db
+*.sqlite
+*.sqlite3
+data/
+
+# PlatformIO / Firmware-Build
+firmware/.pio/
+firmware/src/config.h
+
+# OS / Editor
+.DS_Store
+*.swp
+.vscode/
+.idea/
