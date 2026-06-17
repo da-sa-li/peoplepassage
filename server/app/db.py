@@ -16,6 +16,7 @@ Start aus der DB rekonstruiert.
 
 from __future__ import annotations
 
+import asyncio
 import sqlite3
 import threading
 import time
@@ -61,6 +62,15 @@ CREATE TABLE IF NOT EXISTS adjustments (
 );
 CREATE INDEX IF NOT EXISTS idx_adjustments_ts ON adjustments(ts_utc);
 """
+
+
+def _safe_put(queue: Any, payload: dict) -> None:
+    """Snapshot in eine SSE-Queue legen; bei vollem Puffer (langsamer Client)
+    den Snapshot verwerfen, statt im Event-Loop eine Exception zu werfen."""
+    try:
+        queue.put_nowait(payload)
+    except asyncio.QueueFull:
+        pass
 
 
 def _delta_for(direction: str) -> tuple[int, int]:
@@ -417,7 +427,7 @@ class Store:
         snap = self.snapshot()
         for q in subscribers:
             try:
-                loop.call_soon_threadsafe(q.put_nowait, snap)
+                loop.call_soon_threadsafe(_safe_put, q, snap)
             except RuntimeError:
                 pass
 
