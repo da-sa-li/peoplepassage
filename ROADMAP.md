@@ -16,23 +16,26 @@ Legende: `[ ]` offen · `[~]` in Arbeit · `[x]` fertig
 
 ### Phase 1 — Repo-Gerüst & Infrastruktur
 
-- [ ] `docker-compose.yml` (`mosquitto` + `app`, Volumes, Ports)
-- [ ] `mosquitto/config/mosquitto.conf` (Listener + Username/Passwort-Auth)
-- [ ] `.env.example` (`DASHBOARD_PASSWORD`, `MQTT_USERNAME`, `MQTT_PASSWORD`)
-- [ ] `.gitignore`
-- [ ] `server/Dockerfile`, `server/requirements.txt`
+- [x] `docker-compose.yml` (`mosquitto` + `app`, Volumes, Ports)
+- [x] `mosquitto/config/mosquitto.conf` (Listener + Username/Passwort-Auth) +
+      `mosquitto/entrypoint.sh` (Passwortdatei aus Env generieren)
+- [x] `.env.example` (`DASHBOARD_PASSWORD`, `MQTT_USERNAME`, `MQTT_PASSWORD`)
+- [x] `.gitignore`
+- [x] `server/Dockerfile`, `server/requirements.txt`
+- [x] `server/app/main.py` (minimaler Platzhalter `/healthz` + `/`, in Phase 2 ersetzt)
 
 ### Phase 2 — Server-Kern
 
-- [ ] `app/db.py` — SQLite-Schema + Migrations (`zones`, `sensors`, `passages`,
-      `adjustments`; Unique `(sensor_id, seq)`)
-- [ ] `app/models.py` — Pydantic-Modelle
-- [ ] `app/mqtt.py` — MQTT-Ingest (event/status) + cmd-Publish
-- [ ] Belegungslogik (Türen-als-Kanten, Live-Cache, Rekonstruktion beim Start)
-- [ ] `app/auth.py` — einfacher Passwortschutz
-- [ ] `app/api.py` — REST-Endpunkte (zones, sensors, reset, calibrate, export, stream)
-- [ ] `app/export.py` — minutengenaue CSV-Aggregation
-- [ ] `app/main.py` — App-Zusammenbau, SSE, Startup/Shutdown
+- [x] `app/db.py` — SQLite-Schema (`zones`, `sensors`, `passages`, `adjustments`;
+      Unique `(sensor_id, seq)`) + thread-sicherer `Store`
+- [x] `app/models.py` — Pydantic-Modelle
+- [x] `app/mqtt.py` — MQTT-Ingest (event/status, in/out→a2b/b2a) + cmd-Publish (paho v2)
+- [x] Belegungslogik (Türen-als-Kanten, Live-Cache, Rekonstruktion beim Start,
+      Recompute bei Re-Mapping)
+- [x] `app/auth.py` — einfacher Passwortschutz (HTTP Basic gegen `DASHBOARD_PASSWORD`)
+- [x] `app/api.py` — REST-Endpunkte (zones, sensors, reset, calibrate, export, stream/SSE)
+- [x] `app/export.py` — minutengenaue CSV-Aggregation
+- [x] `app/main.py` — App-Zusammenbau (lifespan), MQTT-Bridge, Offline-Sweeper, SSE
 
 ### Phase 3 — Dashboard
 
@@ -69,9 +72,32 @@ Legende: `[ ]` offen · `[~]` in Arbeit · `[x]` fertig
 
 ## Was als Nächstes
 
-→ **Phase 1**: Repo-Gerüst + Docker-Compose + Mosquitto-Config anlegen.
+→ **Phase 3**: Dashboard (Frontend) — Live-Belegungs-Kacheln, Sensor-Health, Buttons
+(Zone nullen / Sensor kalibrieren), Config-UI (Zonen anlegen, Sensor-Seiten zuordnen),
+CSV-Export-Button, SSE-Live-Updates. Bindet die bestehende REST-API + `/api/stream` an
+und wird in `app/main.py` als statische Oberfläche gemountet.
+
+Hinweise:
+- In dieser Umgebung läuft kein Docker-Daemon — `docker compose build`/`up` muss auf
+  einem Host mit Daemon laufen. `docker compose config` + Resolver-Checks sind grün.
+- Belegung wird aus der **aktuellen** Sensor-Seitenzuordnung berechnet; ein Re-Mapping
+  während der Veranstaltung rechnet die Historie unter der neuen Topologie neu
+  (`recompute_occupancy`). Orientierung (in/out) korrigiert man durch Tausch von Seite A/B.
 
 ## Session-Log
 
 - 2026-06-17: Projekt geplant, Architektur festgelegt (MQTT/Mosquitto, FastAPI+SQLite,
-  Passwortschutz). Phase 0 (CLAUDE.md + ROADMAP.md) erstellt.
+  Passwortschutz). Phase 0 (CLAUDE.md + ROADMAP.md) erstellt. PR #1 gemerged.
+- 2026-06-17: Phase 1 umgesetzt — Docker-Compose (mosquitto + app), Mosquitto mit
+  Passwort-Auth via Entrypoint, `.env.example`, `.gitignore`, Server-Container
+  (Dockerfile + requirements) und Platzhalter-App. `docker compose config` valide,
+  Dependencies aufgelöst (FastAPI 0.115, uvicorn 0.32, paho-mqtt 2.1).
+- 2026-06-17: Phase 2 umgesetzt — Server-Kern (db/models/mqtt/auth/api/export/main).
+  Verifiziert via stdlib-Tests (Belegung, geteilte Tür, Dedupe, Reset, Recompute, CSV)
+  und End-to-End-API-Tests mit FastAPI-TestClient (Auth, Zonen-/Sensor-CRUD, Validierung,
+  Reset, Calibrate, CSV-Header, SSE-Broadcast inkl. Cross-Thread, FK-Cascade). Alle grün.
+- 2026-06-17: PR #2 (Phase 1+2) erstellt; CodeRabbit-Review umgesetzt: PATCH-Validierung
+  (Seite A/B gegen Endzustand), nur UNIQUE als idempotentes Duplikat (sonst raise),
+  `_notify` snapshotet Subscriber unter Lock, CSV-Formula-Injection-Schutz, Typannotationen
+  (lifespan/MQTT-Callbacks), Dockerfile non-root + HEALTHCHECK, requirements exakt gepinnt
+  + pydantic. SQLAlchemy bewusst NICHT ergänzt (stdlib sqlite3, s. CLAUDE.md).
