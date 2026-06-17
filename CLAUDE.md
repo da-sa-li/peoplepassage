@@ -67,7 +67,7 @@ mittig über der Tür montieren, Türbreite ≤ Field-of-View.
 
 ## Repo-Struktur (Zielbild)
 
-```
+```text
 firmware/                    PlatformIO-Projekt (ESP32)
   platformio.ini
   src/main.cpp               WiFi + MQTT + Dual-ROI-Zähllogik
