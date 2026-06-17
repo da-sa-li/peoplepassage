@@ -11,7 +11,8 @@ if [ -z "$MQTT_USERNAME" ] || [ -z "$MQTT_PASSWORD" ]; then
 fi
 
 # Passwortdatei (neu) generieren; -b nimmt das Passwort als Argument, -c legt neu an.
+rm -f "$PASSWD_FILE"
 mosquitto_passwd -b -c "$PASSWD_FILE" "$MQTT_USERNAME" "$MQTT_PASSWORD"
-chmod 0700 "$PASSWD_FILE"
+chmod 0644 "$PASSWD_FILE"
 
 exec mosquitto -c /mosquitto/config/mosquitto.conf
