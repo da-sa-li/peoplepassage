@@ -1,0 +1,24 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: en-GB
+
+reviews:
+  profile: assertive
+  request_changes_workflow: true
+  auto_apply_labels: true
+  in_progress_fortune: false
+  poem: false
+  finishing_touches:
+    docstrings:
+      enabled: false
+    unit_tests:
+      enabled: false
+  tools:
+    fbinfer:
+      enabled: true
+
+chat:
+  art: false
+
+issue_enrichment:
+  auto_enrich:
+    enabled: true
