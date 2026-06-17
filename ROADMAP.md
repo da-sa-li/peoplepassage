@@ -1,7 +1,7 @@
 # ROADMAP — PeoplePassage
 
-Lebender Fortschritts-Tracker. **Am Ende jeder Session aktualisieren** und committen, damit
-Folge-Sessions nahtlos anknüpfen können. Projektkontext/Architektur: siehe
+Lebender Fortschritts-Tracker. **Am Ende jeder Session aktualisieren, committen und pushen**,
+damit Folge-Sessions nahtlos anknüpfen können. Projektkontext/Architektur: siehe
 [`CLAUDE.md`](./CLAUDE.md).
 
 Legende: `[ ]` offen · `[~]` in Arbeit · `[x]` fertig
@@ -39,25 +39,35 @@ Legende: `[ ]` offen · `[~]` in Arbeit · `[x]` fertig
 
 ### Phase 3 — Dashboard
 
-- [ ] Live-Belegungs-Kacheln pro Zone (Farbe bei Kapazitätsannäherung)
-- [ ] Sensor-Health-Liste (online/offline, last_seen, RSSI)
-- [ ] Buttons: Zone nullen, Sensor kalibrieren (mit Bestätigung)
-- [ ] Config-UI: Zonen anlegen, Sensor-Seiten (A/B) zuordnen
-- [ ] CSV-Export-Button mit Zeitraumwahl
-- [ ] SSE-Live-Updates
+- [x] Live-Belegungs-Kacheln pro Zone (Farbe bei Kapazitätsannäherung)
+- [x] Sensor-Health-Liste (online/offline, last_seen, RSSI, Baseline)
+- [x] Buttons: Zone nullen, Sensor kalibrieren (mit Bestätigung)
+- [x] Config-UI: Zonen anlegen/löschen, Sensor-Seiten (A/B) zuordnen
+- [x] CSV-Export-Button mit Zeitraumwahl
+- [x] SSE-Live-Updates
+- Umsetzung: `server/app/web/index.html` (self-contained, Vanilla JS/CSS) +
+  passwortgeschützte Route `GET /` in `app/main.py` (FileResponse).
 
 ### Phase 4 — Test ohne Hardware & Verifikation
 
-- [ ] `tools/sim_sensor.py` (MQTT-Simulator mehrerer Sensoren)
-- [ ] End-to-End-Verifikation gemäß Checkliste in `CLAUDE.md`
+- [x] `tools/sim_sensor.py` (MQTT-Simulator mehrerer Sensoren; status/event, LWT-Offline,
+      konfigurierbar via Args/Env)
+- [x] End-to-End-Verifikation gemäß Checkliste in `CLAUDE.md` (Simulator-Format →
+      MQTT-Bridge → Belegung inkl. geteilter Tür → API → SSE-Snapshot → Reset →
+      Calibrate → minutengenaues CSV → Offline-Erkennung). Alle grün.
+- Hinweis: Ein *Live*-Lauf des Simulators braucht einen MQTT-Broker
+      (`docker compose up`); die Verifikation hier nutzt den realen Server-Pfad
+      (`MqttBridge._on_message`) ohne Broker.
 
 ### Phase 5 — Firmware (ESP32 + VL53L1X)
 
-- [ ] `firmware/platformio.ini` (ESP32, Libs: VL53L1X, PubSubClient)
-- [ ] `firmware/src/config.h.example`
-- [ ] `firmware/src/main.cpp` — WiFi + MQTT (LWT) + Dual-ROI-Zähllogik + calibrate
-- [ ] `pio run` Kompilier-Check
-- [ ] `firmware/README.md` — Flashen, Montage, Kalibrierung
+- [x] `firmware/platformio.ini` (ESP32, Libs: SparkFun VL53L1X, PubSubClient)
+- [x] `firmware/src/config.h.example` (WLAN/MQTT/SENSOR_ID/ROI/Schwellen)
+- [x] `firmware/src/main.cpp` — WiFi + MQTT (LWT) + Dual-ROI-Zähllogik + calibrate;
+      `seq` in NVS persistiert (Reboot-sichere Idempotenz)
+- [~] `pio run` Kompilier-Check — **in dieser Umgebung kein PlatformIO/Toolchain**;
+      muss auf einem Host mit `pio` ausgeführt werden (Code reviewt, Libs gepinnt)
+- [x] `firmware/README.md` — Verkabelung, Montage, Flashen, Kalibrierung, MQTT-Vertrag
 
 ### Phase 6 — Doku-Abschluss
 
@@ -72,10 +82,10 @@ Legende: `[ ]` offen · `[~]` in Arbeit · `[x]` fertig
 
 ## Was als Nächstes
 
-→ **Phase 3**: Dashboard (Frontend) — Live-Belegungs-Kacheln, Sensor-Health, Buttons
-(Zone nullen / Sensor kalibrieren), Config-UI (Zonen anlegen, Sensor-Seiten zuordnen),
-CSV-Export-Button, SSE-Live-Updates. Bindet die bestehende REST-API + `/api/stream` an
-und wird in `app/main.py` als statische Oberfläche gemountet.
+→ **Phase 6**: Top-Level-`README.md` (Gesamtüberblick, Architektur, Setup, Betrieb,
+Verweise auf `CLAUDE.md`/`ROADMAP.md`/`firmware/README.md`). Danach: ein echter
+`docker compose up`-Smoke-Test mit Hardware/Simulator. (Der ausstehende `pio run`
+Kompilier-Check bleibt unter Phase 5 getrackt.)
 
 Hinweise:
 - In dieser Umgebung läuft kein Docker-Daemon — `docker compose build`/`up` muss auf
@@ -100,4 +110,21 @@ Hinweise:
   (Seite A/B gegen Endzustand), nur UNIQUE als idempotentes Duplikat (sonst raise),
   `_notify` snapshotet Subscriber unter Lock, CSV-Formula-Injection-Schutz, Typannotationen
   (lifespan/MQTT-Callbacks), Dockerfile non-root + HEALTHCHECK, requirements exakt gepinnt
-  + pydantic. SQLAlchemy bewusst NICHT ergänzt (stdlib sqlite3, s. CLAUDE.md).
+  + pydantic, QueueFull bei langsamen SSE-Clients abgefangen. SQLAlchemy bewusst NICHT
+  ergänzt (stdlib sqlite3, s. CLAUDE.md). PR #2 gemerged.
+- 2026-06-17: Phase 3 umgesetzt — Dashboard (`server/app/web/index.html`) + Route `GET /`.
+  Live-Kacheln, Sensor-Health, Nullen/Kalibrieren/Zonen-Config, CSV-Export, SSE-Live.
+  Verifiziert via TestClient (Auth 401/200, HTML ausgeliefert, API-Verdrahtung).
+- 2026-06-17: Phase 4 umgesetzt — `tools/sim_sensor.py` (MQTT-Simulator) + E2E-Verifikation
+  über den realen Server-Pfad (ohne Broker): Auto-Registrierung, geteilte Tür (Halle/
+  Backstage), Dedupe, SSE-Snapshot, Reset, Calibrate, minutengenaues CSV, Offline nach
+  Timeout — alle grün.
+- 2026-06-17: Phase 5 umgesetzt — ESP32-Firmware (`firmware/`): VL53L1X Dual-ROI-
+  Richtungserkennung, WiFi+MQTT (event/status, LWT), calibrate, NVS-persistierte seq;
+  platformio.ini, config.h.example, README. `pio run` steht aus (kein PlatformIO hier).
+- 2026-06-17: PR #3 (Phase 3+4+5) erstellt; CodeRabbit-Review (11 Findings) umgesetzt:
+  Firmware ignoriert ungültige (0-)Messungen + Ring-Puffer gegen Eventverlust bei
+  MQTT-Ausfall; Dashboard XSS-sicher per DOM-APIs (keine Inline-Handler), Label-`for`,
+  Kapazitäts-Validierung; Simulator leere-Sensorliste-Guard, geseedete RNG-Reihenfolge,
+  Callback-Typannotationen, publish-wait beim Shutdown; ROADMAP-Doku (push-Schritt,
+  pio-run-Dublette). E2E nach Fixes erneut grün.

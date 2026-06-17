@@ -11,12 +11,17 @@ import logging
 import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
+from fastapi.responses import FileResponse
 
 from .api import router
+from .auth import require_auth
 from .db import Store
 from .mqtt import MqttBridge
+
+WEB_DIR = Path(__file__).parent / "web"
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("peoplepassage")
@@ -67,3 +72,9 @@ app.include_router(router)
 @app.get("/healthz")
 def healthz() -> dict:
     return {"status": "ok"}
+
+
+@app.get("/", dependencies=[Depends(require_auth)])
+def dashboard() -> FileResponse:
+    """Passwortgeschütztes Dashboard (statische Single-Page-Oberfläche)."""
+    return FileResponse(WEB_DIR / "index.html", media_type="text/html")

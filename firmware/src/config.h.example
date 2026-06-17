@@ -1,0 +1,41 @@
+// Kopiere diese Datei nach src/config.h und passe die Werte an.
+// src/config.h ist in .gitignore und wird NICHT eingecheckt.
+#pragma once
+
+// ----- WLAN -----
+#define WIFI_SSID        "MeinWLAN"
+#define WIFI_PASS        "geheim"
+
+// ----- MQTT (entspricht MQTT_USERNAME/MQTT_PASSWORD aus der Server-.env) -----
+#define MQTT_HOST        "192.168.1.10"   // IP/Hostname des Docker-Servers
+#define MQTT_PORT        1883
+#define MQTT_USER        "peoplepassage"
+#define MQTT_PASS        "changeme-mqtt"
+
+// Eindeutige Sensor-/Tür-ID (pro Tür einmalig!). Erscheint im Dashboard.
+#define SENSOR_ID        "door1"
+#define FIRMWARE_VERSION "esp32-1.0"
+
+// ----- VL53L1X I2C (ESP32 Standard: SDA=21, SCL=22) -----
+#define PIN_SDA          21
+#define PIN_SCL          22
+
+// ----- Dual-ROI Richtungserkennung -----
+// Zwei nebeneinander liegende ROIs teilen das Sichtfeld quer über die Türschwelle.
+// Optische Zentren für linke/rechte Hälfte (16x16-SPAD-Array). Ggf. tunen.
+#define ROI_WIDTH        8
+#define ROI_HEIGHT       16
+#define ROI_CENTER_LEFT  167
+#define ROI_CENTER_RIGHT 231
+
+// Mess-Timing pro Zone (ms). Kürzer = schnellere Personen, mehr Rauschen.
+#define TIMING_BUDGET_MS 33
+
+// ----- Präsenz-Erkennung -----
+// Eine Person gilt als "anwesend", wenn die Distanz unter (Baseline - Marge) liegt.
+#define PRESENCE_MARGIN_MM 400   // typ. Kopf-/Schulterhöhe unter Decke
+#define MIN_VALID_MM       100   // Messungen darunter ignorieren (Rauschen)
+#define DEFAULT_BASELINE_MM 2400 // Decke->Boden, bis zur ersten Kalibrierung
+
+// Anzahl Messungen für die Baseline-Kalibrierung (Mittelwert, leerer Durchgang).
+#define CALIB_SAMPLES     40
