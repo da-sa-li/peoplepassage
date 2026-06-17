@@ -61,11 +61,13 @@ Legende: `[ ]` offen · `[~]` in Arbeit · `[x]` fertig
 
 ### Phase 5 — Firmware (ESP32 + VL53L1X)
 
-- [ ] `firmware/platformio.ini` (ESP32, Libs: VL53L1X, PubSubClient)
-- [ ] `firmware/src/config.h.example`
-- [ ] `firmware/src/main.cpp` — WiFi + MQTT (LWT) + Dual-ROI-Zähllogik + calibrate
-- [ ] `pio run` Kompilier-Check
-- [ ] `firmware/README.md` — Flashen, Montage, Kalibrierung
+- [x] `firmware/platformio.ini` (ESP32, Libs: SparkFun VL53L1X, PubSubClient)
+- [x] `firmware/src/config.h.example` (WLAN/MQTT/SENSOR_ID/ROI/Schwellen)
+- [x] `firmware/src/main.cpp` — WiFi + MQTT (LWT) + Dual-ROI-Zähllogik + calibrate;
+      `seq` in NVS persistiert (Reboot-sichere Idempotenz)
+- [~] `pio run` Kompilier-Check — **in dieser Umgebung kein PlatformIO/Toolchain**;
+      muss auf einem Host mit `pio` ausgeführt werden (Code reviewt, Libs gepinnt)
+- [x] `firmware/README.md` — Verkabelung, Montage, Flashen, Kalibrierung, MQTT-Vertrag
 
 ### Phase 6 — Doku-Abschluss
 
@@ -80,9 +82,9 @@ Legende: `[ ]` offen · `[~]` in Arbeit · `[x]` fertig
 
 ## Was als Nächstes
 
-→ **Phase 5**: ESP32-Firmware (PlatformIO) — VL53L1X Dual-ROI-Richtungserkennung, WiFi,
-MQTT (event/status mit LWT), `calibrate`-Kommando; `pio run` Kompilier-Check; Montage-/
-Kalibrierungs-Doku in `firmware/README.md`.
+→ **Phase 6**: Top-Level-`README.md` (Gesamtüberblick, Architektur, Setup, Betrieb,
+Verweise auf `CLAUDE.md`/`ROADMAP.md`/`firmware/README.md`). Danach: `pio run` auf einem
+Host mit PlatformIO und ein echter `docker compose up`-Smoke-Test mit Hardware/Simulator.
 
 Hinweise:
 - In dieser Umgebung läuft kein Docker-Daemon — `docker compose build`/`up` muss auf
@@ -116,3 +118,6 @@ Hinweise:
   über den realen Server-Pfad (ohne Broker): Auto-Registrierung, geteilte Tür (Halle/
   Backstage), Dedupe, SSE-Snapshot, Reset, Calibrate, minutengenaues CSV, Offline nach
   Timeout — alle grün.
+- 2026-06-17: Phase 5 umgesetzt — ESP32-Firmware (`firmware/`): VL53L1X Dual-ROI-
+  Richtungserkennung, WiFi+MQTT (event/status, LWT), calibrate, NVS-persistierte seq;
+  platformio.ini, config.h.example, README. `pio run` steht aus (kein PlatformIO hier).
