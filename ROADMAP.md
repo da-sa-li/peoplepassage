@@ -39,12 +39,14 @@ Legende: `[ ]` offen · `[~]` in Arbeit · `[x]` fertig
 
 ### Phase 3 — Dashboard
 
-- [ ] Live-Belegungs-Kacheln pro Zone (Farbe bei Kapazitätsannäherung)
-- [ ] Sensor-Health-Liste (online/offline, last_seen, RSSI)
-- [ ] Buttons: Zone nullen, Sensor kalibrieren (mit Bestätigung)
-- [ ] Config-UI: Zonen anlegen, Sensor-Seiten (A/B) zuordnen
-- [ ] CSV-Export-Button mit Zeitraumwahl
-- [ ] SSE-Live-Updates
+- [x] Live-Belegungs-Kacheln pro Zone (Farbe bei Kapazitätsannäherung)
+- [x] Sensor-Health-Liste (online/offline, last_seen, RSSI, Baseline)
+- [x] Buttons: Zone nullen, Sensor kalibrieren (mit Bestätigung)
+- [x] Config-UI: Zonen anlegen/löschen, Sensor-Seiten (A/B) zuordnen
+- [x] CSV-Export-Button mit Zeitraumwahl
+- [x] SSE-Live-Updates
+- Umsetzung: `server/app/web/index.html` (self-contained, Vanilla JS/CSS) +
+  passwortgeschützte Route `GET /` in `app/main.py` (FileResponse).
 
 ### Phase 4 — Test ohne Hardware & Verifikation
 
@@ -72,10 +74,9 @@ Legende: `[ ]` offen · `[~]` in Arbeit · `[x]` fertig
 
 ## Was als Nächstes
 
-→ **Phase 3**: Dashboard (Frontend) — Live-Belegungs-Kacheln, Sensor-Health, Buttons
-(Zone nullen / Sensor kalibrieren), Config-UI (Zonen anlegen, Sensor-Seiten zuordnen),
-CSV-Export-Button, SSE-Live-Updates. Bindet die bestehende REST-API + `/api/stream` an
-und wird in `app/main.py` als statische Oberfläche gemountet.
+→ **Phase 4**: Sensor-Simulator (`tools/sim_sensor.py`, MQTT) + End-to-End-Verifikation
+gemäß Checkliste in `CLAUDE.md` (Dashboard live, geteilte Tür, Nullen, Kalibrieren,
+CSV, Offline-Erkennung) — idealerweise auf einem Host mit Docker-Daemon.
 
 Hinweise:
 - In dieser Umgebung läuft kein Docker-Daemon — `docker compose build`/`up` muss auf
@@ -100,4 +101,8 @@ Hinweise:
   (Seite A/B gegen Endzustand), nur UNIQUE als idempotentes Duplikat (sonst raise),
   `_notify` snapshotet Subscriber unter Lock, CSV-Formula-Injection-Schutz, Typannotationen
   (lifespan/MQTT-Callbacks), Dockerfile non-root + HEALTHCHECK, requirements exakt gepinnt
-  + pydantic. SQLAlchemy bewusst NICHT ergänzt (stdlib sqlite3, s. CLAUDE.md).
+  + pydantic, QueueFull bei langsamen SSE-Clients abgefangen. SQLAlchemy bewusst NICHT
+  ergänzt (stdlib sqlite3, s. CLAUDE.md). PR #2 gemerged.
+- 2026-06-17: Phase 3 umgesetzt — Dashboard (`server/app/web/index.html`) + Route `GET /`.
+  Live-Kacheln, Sensor-Health, Nullen/Kalibrieren/Zonen-Config, CSV-Export, SSE-Live.
+  Verifiziert via TestClient (Auth 401/200, HTML ausgeliefert, API-Verdrahtung).

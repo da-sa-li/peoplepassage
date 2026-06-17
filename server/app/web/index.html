@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PeoplePassage – Dashboard</title>
+<style>
+  :root {
+    --bg: #0f172a; --card: #1e293b; --card2: #273449; --text: #e2e8f0;
+    --muted: #94a3b8; --ok: #22c55e; --warn: #f59e0b; --crit: #ef4444;
+    --accent: #38bdf8; --border: #334155;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    background: var(--bg); color: var(--text);
+  }
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 20px; background: var(--card); border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 10;
+  }
+  header h1 { font-size: 18px; margin: 0; }
+  .conn { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); }
+  .dot.on { background: var(--ok); } .dot.off { background: var(--crit); }
+  main { padding: 20px; max-width: 1100px; margin: 0 auto; }
+  h2 { font-size: 15px; color: var(--muted); text-transform: uppercase;
+       letter-spacing: .05em; margin: 28px 0 12px; }
+  .tiles { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+  .tile {
+    background: var(--card); border: 1px solid var(--border); border-left-width: 5px;
+    border-radius: 10px; padding: 16px;
+  }
+  .tile.ok { border-left-color: var(--ok); }
+  .tile.warn { border-left-color: var(--warn); }
+  .tile.crit { border-left-color: var(--crit); }
+  .tile .name { font-weight: 600; font-size: 15px; }
+  .tile .occ { font-size: 44px; font-weight: 700; line-height: 1.1; margin: 6px 0; }
+  .tile .cap { color: var(--muted); font-size: 13px; }
+  .tile .actions { margin-top: 12px; display: flex; gap: 8px; }
+  button {
+    background: var(--card2); color: var(--text); border: 1px solid var(--border);
+    border-radius: 7px; padding: 7px 12px; font-size: 13px; cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); color: #06283b; border-color: var(--accent); font-weight: 600; }
+  button.danger:hover { border-color: var(--crit); color: var(--crit); }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; }
+  select, input {
+    background: var(--card2); color: var(--text); border: 1px solid var(--border);
+    border-radius: 6px; padding: 6px 8px; font-size: 13px;
+  }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+          padding: 16px; }
+  .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 12px; color: var(--muted); }
+  .muted { color: var(--muted); }
+  .pill { font-size: 12px; padding: 2px 8px; border-radius: 999px; }
+  .pill.on { background: rgba(34,197,94,.15); color: var(--ok); }
+  .pill.off { background: rgba(239,68,68,.15); color: var(--crit); }
+  .empty { color: var(--muted); padding: 14px 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🚪 PeoplePassage</h1>
+  <div class="conn"><span id="connDot" class="dot"></span><span id="connText">Verbinde…</span></div>
+</header>
+<main>
+  <h2>Zonen-Belegung</h2>
+  <div id="tiles" class="tiles"><div class="empty">Noch keine Zonen angelegt.</div></div>
+
+  <h2>Zone anlegen</h2>
+  <div class="card">
+    <div class="row">
+      <div class="field"><label>Name</label><input id="zName" placeholder="z. B. Halle" /></div>
+      <div class="field"><label>Kapazität (optional)</label><input id="zCap" type="number" min="0" placeholder="—" /></div>
+      <button class="primary" onclick="createZone()">Zone hinzufügen</button>
+    </div>
+  </div>
+
+  <h2>Sensoren</h2>
+  <div class="card">
+    <table>
+      <thead><tr>
+        <th>Status</th><th>Sensor</th><th>Seite A</th><th>Seite B</th>
+        <th>Baseline</th><th>RSSI</th><th>Zuletzt</th><th></th>
+      </tr></thead>
+      <tbody id="sensorRows"><tr><td colspan="8" class="empty">Noch keine Sensoren gemeldet.</td></tr></tbody>
+    </table>
+    <p class="muted" style="font-size:12px;margin:10px 0 0">
+      Richtung „rein/raus" über Tausch von Seite A/B korrigierbar. Sensor nur kalibrieren, wenn niemand darunter steht.
+    </p>
+  </div>
+
+  <h2>Chronik-Export (CSV, minutengenau)</h2>
+  <div class="card">
+    <div class="row">
+      <div class="field"><label>Von</label><input id="from" type="datetime-local" /></div>
+      <div class="field"><label>Bis</label><input id="to" type="datetime-local" /></div>
+      <button class="primary" onclick="exportCsv()">CSV herunterladen</button>
+      <span class="muted" style="font-size:12px">Leer = letzte 24 Stunden.</span>
+    </div>
+  </div>
+</main>
+
+<script>
+let state = { zones: [], sensors: [] };
+
+function fmtTime(ts) {
+  if (!ts) return "—";
+  const d = new Date(ts * 1000);
+  return d.toLocaleString();
+}
+function tileClass(z) {
+  if (z.capacity == null || z.capacity === 0) return "ok";
+  const r = z.occupancy / z.capacity;
+  if (r >= 1) return "crit";
+  if (r >= 0.8) return "warn";
+  return "ok";
+}
+function zoneOptions(selected) {
+  let opts = '<option value="">— Außen —</option>';
+  for (const z of state.zones) {
+    opts += `<option value="${z.id}" ${z.id === selected ? "selected" : ""}>${esc(z.name)}</option>`;
+  }
+  return opts;
+}
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"']/g, c => (
+    {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+}
+
+function render() {
+  // Zone tiles
+  const tiles = document.getElementById("tiles");
+  if (!state.zones.length) {
+    tiles.innerHTML = '<div class="empty">Noch keine Zonen angelegt.</div>';
+  } else {
+    tiles.innerHTML = state.zones.map(z => `
+      <div class="tile ${tileClass(z)}">
+        <div class="name">${esc(z.name)}</div>
+        <div class="occ">${z.occupancy}</div>
+        <div class="cap">${z.capacity != null ? "/ " + z.capacity + " Pers." : "ohne Limit"}</div>
+        <div class="actions">
+          <button class="danger" onclick="resetZone(${z.id}, '${esc(z.name)}')">Nullen</button>
+          <button class="danger" onclick="deleteZone(${z.id}, '${esc(z.name)}')">Löschen</button>
+        </div>
+      </div>`).join("");
+  }
+  // Sensors
+  const rows = document.getElementById("sensorRows");
+  if (!state.sensors.length) {
+    rows.innerHTML = '<tr><td colspan="8" class="empty">Noch keine Sensoren gemeldet.</td></tr>';
+  } else {
+    rows.innerHTML = state.sensors.map(s => `
+      <tr>
+        <td><span class="pill ${s.online ? "on" : "off"}">${s.online ? "online" : "offline"}</span></td>
+        <td><strong>${esc(s.name || s.id)}</strong><br><span class="muted" style="font-size:12px">${esc(s.id)}</span></td>
+        <td><select onchange="setSide('${esc(s.id)}','side_a_zone_id',this.value)">${zoneOptions(s.side_a_zone_id)}</select></td>
+        <td><select onchange="setSide('${esc(s.id)}','side_b_zone_id',this.value)">${zoneOptions(s.side_b_zone_id)}</select></td>
+        <td>${s.baseline_mm != null ? s.baseline_mm + " mm" : "—"}</td>
+        <td>${s.rssi != null ? s.rssi + " dBm" : "—"}</td>
+        <td class="muted" style="font-size:12px">${fmtTime(s.last_seen)}</td>
+        <td><button onclick="calibrate('${esc(s.id)}')">Kalibrieren</button></td>
+      </tr>`).join("");
+  }
+}
+
+// ---- API helpers ----
+async function api(method, url, body) {
+  const opt = { method, headers: {} };
+  if (body !== undefined) { opt.headers["Content-Type"] = "application/json"; opt.body = JSON.stringify(body); }
+  const r = await fetch(url, opt);
+  if (!r.ok) { alert("Fehler: " + r.status + " " + (await r.text())); throw new Error(r.status); }
+  return r.status === 204 ? null : r.json();
+}
+async function createZone() {
+  const name = document.getElementById("zName").value.trim();
+  if (!name) return alert("Bitte einen Namen eingeben.");
+  const capRaw = document.getElementById("zCap").value;
+  const body = { name }; if (capRaw !== "") body.capacity = parseInt(capRaw, 10);
+  await api("POST", "/api/zones", body);
+  document.getElementById("zName").value = ""; document.getElementById("zCap").value = "";
+}
+async function resetZone(id, name) {
+  if (!confirm(`Belegung von „${name}" auf 0 setzen?`)) return;
+  await api("POST", `/api/zones/${id}/reset`, { reason: "Dashboard" });
+}
+async function deleteZone(id, name) {
+  if (!confirm(`Zone „${name}" löschen? Sensor-Zuordnungen werden gelöst.`)) return;
+  await api("DELETE", `/api/zones/${id}`);
+}
+async function setSide(sensorId, side, value) {
+  const body = {}; body[side] = value === "" ? null : parseInt(value, 10);
+  await api("PATCH", `/api/sensors/${sensorId}`, body);
+}
+async function calibrate(sensorId) {
+  if (!confirm(`Sensor „${sensorId}" kalibrieren (nur wenn niemand darunter steht)?`)) return;
+  await api("POST", `/api/sensors/${sensorId}/calibrate`);
+  alert("Kalibrier-Kommando gesendet.");
+}
+function exportCsv() {
+  const params = new URLSearchParams();
+  const f = document.getElementById("from").value, t = document.getElementById("to").value;
+  if (f) params.set("from", Math.floor(new Date(f).getTime() / 1000));
+  if (t) params.set("to", Math.floor(new Date(t).getTime() / 1000));
+  const qs = params.toString();
+  window.location = "/api/export.csv" + (qs ? "?" + qs : "");
+}
+
+// ---- Live updates via SSE ----
+function setConn(on) {
+  document.getElementById("connDot").className = "dot " + (on ? "on" : "off");
+  document.getElementById("connText").textContent = on ? "Live verbunden" : "Getrennt – verbinde neu…";
+}
+function connect() {
+  const es = new EventSource("/api/stream");
+  es.addEventListener("snapshot", ev => {
+    state = JSON.parse(ev.data); setConn(true); render();
+  });
+  es.addEventListener("ping", () => setConn(true));
+  es.onopen = () => setConn(true);
+  es.onerror = () => { setConn(false); /* EventSource reconnects automatically */ };
+}
+connect();
+</script>
+</body>
+</html>
