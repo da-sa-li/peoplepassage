@@ -14,7 +14,7 @@ from __future__ import annotations
 import json
 import logging
 import time
-from typing import Optional
+from typing import Any, Optional
 
 import paho.mqtt.client as mqtt
 
@@ -59,14 +59,21 @@ class MqttBridge:
             pass
 
     # ------------------------------------------------------------- Callbacks
-    def _on_connect(self, client, userdata, flags, reason_code, properties=None) -> None:
+    def _on_connect(
+        self,
+        client: Any,
+        userdata: Any,
+        flags: Any,
+        reason_code: Any,
+        properties: Any = None,
+    ) -> None:
         if reason_code != 0:
             log.warning("MQTT-Verbindung fehlgeschlagen: %s", reason_code)
             return
         log.info("MQTT verbunden mit %s:%s", self.host, self.port)
         client.subscribe([(f"{TOPIC_PREFIX}/+/event", 0), (f"{TOPIC_PREFIX}/+/status", 0)])
 
-    def _on_message(self, client, userdata, msg) -> None:
+    def _on_message(self, client: Any, userdata: Any, msg: Any) -> None:
         try:
             parts = msg.topic.split("/")
             if len(parts) != 3 or parts[0] != TOPIC_PREFIX:
@@ -118,7 +125,7 @@ class MqttBridge:
         log.info("Kommando %r an %s gesendet", cmd, sensor_id)
 
 
-def _as_int(value) -> Optional[int]:
+def _as_int(value: Any) -> Optional[int]:
     if value is None:
         return None
     try:

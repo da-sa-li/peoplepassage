@@ -82,14 +82,20 @@ def update_sensor(
     sensor_id: str, payload: SensorUpdate, store: Store = Depends(get_store)
 ) -> dict:
     fields = payload.model_fields_set
+    current = store.get_sensor(sensor_id)
+    if current is None:
+        raise HTTPException(404, "Sensor nicht gefunden")
+
     for side in ("side_a_zone_id", "side_b_zone_id"):
         zid = getattr(payload, side)
         if side in fields and zid is not None and store.get_zone(zid) is None:
             raise HTTPException(400, f"Zone {zid} existiert nicht")
-    if (
-        payload.side_a_zone_id is not None
-        and payload.side_a_zone_id == payload.side_b_zone_id
-    ):
+
+    # Gleichheit gegen den effektiven Endzustand prüfen (auch wenn nur eine Seite
+    # gepatcht wird), damit A und B nie dieselbe Zone werden.
+    next_a = payload.side_a_zone_id if "side_a_zone_id" in fields else current["side_a_zone_id"]
+    next_b = payload.side_b_zone_id if "side_b_zone_id" in fields else current["side_b_zone_id"]
+    if next_a is not None and next_a == next_b:
         raise HTTPException(400, "Seite A und B dürfen nicht dieselbe Zone sein")
 
     sensor = store.update_sensor(

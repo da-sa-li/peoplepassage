@@ -96,3 +96,8 @@ Hinweise:
   Verifiziert via stdlib-Tests (Belegung, geteilte Tür, Dedupe, Reset, Recompute, CSV)
   und End-to-End-API-Tests mit FastAPI-TestClient (Auth, Zonen-/Sensor-CRUD, Validierung,
   Reset, Calibrate, CSV-Header, SSE-Broadcast inkl. Cross-Thread, FK-Cascade). Alle grün.
+- 2026-06-17: PR #2 (Phase 1+2) erstellt; CodeRabbit-Review umgesetzt: PATCH-Validierung
+  (Seite A/B gegen Endzustand), nur UNIQUE als idempotentes Duplikat (sonst raise),
+  `_notify` snapshotet Subscriber unter Lock, CSV-Formula-Injection-Schutz, Typannotationen
+  (lifespan/MQTT-Callbacks), Dockerfile non-root + HEALTHCHECK, requirements exakt gepinnt
+  + pydantic. SQLAlchemy bewusst NICHT ergänzt (stdlib sqlite3, s. CLAUDE.md).

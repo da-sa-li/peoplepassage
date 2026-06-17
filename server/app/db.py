@@ -312,8 +312,12 @@ class Store:
                     "VALUES (?, ?, ?, ?)",
                     (sensor_id, ts, direction, seq),
                 )
-            except sqlite3.IntegrityError:
-                return False  # Duplikat → idempotent ignorieren
+            except sqlite3.IntegrityError as exc:
+                # Nur die UNIQUE(sensor_id, seq)-Verletzung ist ein idempotentes
+                # Duplikat; andere Constraint-Fehler (z. B. CHECK direction) melden.
+                if "UNIQUE constraint failed" in str(exc):
+                    return False
+                raise
             self._conn.execute(
                 "UPDATE sensors SET online = 1, last_seen = ? WHERE id = ?",
                 (ts, sensor_id),
@@ -405,12 +409,15 @@ class Store:
 
     def _notify(self) -> None:
         """Aktuellen Snapshot an alle SSE-Abonnenten pushen (thread-sicher)."""
-        if self._loop is None or not self._subscribers:
+        with self._lock:
+            loop = self._loop
+            subscribers = list(self._subscribers)
+        if loop is None or not subscribers:
             return
         snap = self.snapshot()
-        for q in list(self._subscribers):
+        for q in subscribers:
             try:
-                self._loop.call_soon_threadsafe(q.put_nowait, snap)
+                loop.call_soon_threadsafe(q.put_nowait, snap)
             except RuntimeError:
                 pass
 

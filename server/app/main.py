@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -40,7 +41,7 @@ async def _offline_sweeper(store: Store) -> None:
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     store = Store(DB_PATH)
     store.set_loop(asyncio.get_running_loop())
     app.state.store = store

@@ -20,6 +20,13 @@ from datetime import datetime, timezone
 from .db import Store, _delta_for
 
 
+def _csv_safe(value: str) -> str:
+    """CSV-Formula-Injection entschärfen (führende =, +, -, @ neutralisieren)."""
+    if value and value[0] in ("=", "+", "-", "@"):
+        return "'" + value
+    return value
+
+
 def _minute_index(ts: float) -> int:
     return int(ts // 60)
 
@@ -108,6 +115,6 @@ def build_csv(store: Store, ts_from: float, ts_to: float) -> str:
             o = outs.get((m, zid), 0)
             net = i - o
             running[zid] += net + adj.get((m, zid), 0)
-            writer.writerow([iso, zid, zone_names[zid], i, o, net, running[zid]])
+            writer.writerow([iso, zid, _csv_safe(zone_names[zid]), i, o, net, running[zid]])
 
     return out.getvalue()
