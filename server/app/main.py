@@ -1,7 +1,8 @@
 """PeoplePassage – Server-Einstiegspunkt.
 
-Verdrahtet Datenschicht (Store), MQTT-Brücke, REST-API und SSE. Das Dashboard
-(statische Oberfläche) folgt in Phase 3 – siehe ROADMAP.md.
+Verdrahtet Datenschicht (Store), MQTT-Brücke, REST-API und SSE.
+Dashboard (öffentlich, /): server/app/web/dashboard.html
+Konfiguration (passwortgeschützt, /config): server/app/web/config.html
 """
 
 from __future__ import annotations
@@ -16,7 +17,7 @@ from pathlib import Path
 from fastapi import Depends, FastAPI
 from fastapi.responses import FileResponse
 
-from .api import router
+from .api import private_router, public_router
 from .auth import require_auth
 from .db import Store
 from .mqtt import MqttBridge
@@ -66,7 +67,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title="PeoplePassage", lifespan=lifespan)
-app.include_router(router)
+app.include_router(public_router)
+app.include_router(private_router)
 
 
 @app.get("/healthz")
@@ -74,7 +76,13 @@ def healthz() -> dict:
     return {"status": "ok"}
 
 
-@app.get("/", dependencies=[Depends(require_auth)])
+@app.get("/")
 def dashboard() -> FileResponse:
-    """Passwortgeschütztes Dashboard (statische Single-Page-Oberfläche)."""
-    return FileResponse(WEB_DIR / "index.html", media_type="text/html")
+    """Öffentliches Live-Dashboard (Beamer/Handy-optimiert, kein Login)."""
+    return FileResponse(WEB_DIR / "dashboard.html", media_type="text/html")
+
+
+@app.get("/config", dependencies=[Depends(require_auth)])
+def config_panel() -> FileResponse:
+    """Passwortgeschützte Konfigurationsseite (Zonen, Sensoren, CSV-Export)."""
+    return FileResponse(WEB_DIR / "config.html", media_type="text/html")

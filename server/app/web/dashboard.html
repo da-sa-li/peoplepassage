@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PeoplePassage</title>
+<style>
+  :root {
+    --bg:        #0a0e1a;
+    --card-bg:   #111827;
+    --text:      #f1f5f9;
+    --muted:     #4b5563;
+    --ok:        #22c55e;
+    --ok-glow:   rgba(34, 197, 94, .18);
+    --warn:      #f59e0b;
+    --warn-glow: rgba(245, 158, 11, .18);
+    --crit:      #ef4444;
+    --crit-glow: rgba(239, 68, 68, .22);
+    --border:    #1e2a3a;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100dvh;
+  }
+
+  /* ---- Header ---- */
+  header {
+    position: sticky; top: 0; z-index: 10;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 16px; height: 48px;
+    background: rgba(10, 14, 26, .9);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+  }
+  .brand {
+    font-size: 13px; font-weight: 700; letter-spacing: .06em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  .header-right { display: flex; align-items: center; gap: 4px; }
+
+  /* Connection indicator */
+  .conn { display: flex; align-items: center; gap: 6px; padding: 4px 10px; }
+  .conn-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--muted);
+    transition: background .4s;
+  }
+  .conn-dot.live { background: var(--ok); }
+  .conn-dot.dead { background: var(--crit); }
+  .conn-label { font-size: 11px; color: var(--muted); }
+
+  /* Icon buttons */
+  .icon-btn {
+    background: none; border: none; cursor: pointer;
+    color: var(--muted); border-radius: 6px;
+    padding: 6px 8px; font-size: 16px; line-height: 1;
+    transition: color .2s, background .2s;
+    text-decoration: none; display: flex; align-items: center;
+  }
+  .icon-btn:hover { color: var(--text); background: rgba(255,255,255,.07); }
+
+  /* ---- Zone grid ---- */
+  .zone-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
+    gap: 16px;
+    padding: 16px;
+    align-content: start;
+  }
+
+  /* ---- Zone card ---- */
+  .zone-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px 20px 16px;
+    display: flex; flex-direction: column; gap: 6px;
+    position: relative; overflow: hidden;
+    transition: box-shadow .4s;
+  }
+  /* Top accent bar */
+  .zone-card::before {
+    content: "";
+    position: absolute; top: 0; left: 0; right: 0; height: 4px;
+    border-radius: 14px 14px 0 0;
+    background: var(--muted);
+    transition: background .4s;
+  }
+  .zone-card.ok::before   { background: var(--ok); }
+  .zone-card.warn::before { background: var(--warn); }
+  .zone-card.crit::before { background: var(--crit); }
+
+  .zone-card.ok   { box-shadow: 0 0 28px var(--ok-glow); }
+  .zone-card.warn { box-shadow: 0 0 28px var(--warn-glow); }
+  .zone-card.crit { box-shadow: 0 0 28px var(--crit-glow); }
+
+  /* Crit pulse */
+  @keyframes crit-pulse {
+    0%, 100% { box-shadow: 0 0 28px var(--crit-glow); }
+    50%       { box-shadow: 0 0 56px rgba(239, 68, 68, .45); }
+  }
+  .zone-card.crit { animation: crit-pulse 2s ease-in-out infinite; }
+
+  /* Flash on change */
+  @keyframes flash {
+    0%   { background: rgba(248, 248, 255, .13); }
+    100% { background: var(--card-bg); }
+  }
+  .zone-card.flashing { animation: flash .5s ease-out; }
+
+  /* Zone name */
+  .zone-name {
+    font-size: 11px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .12em;
+    color: var(--muted);
+  }
+
+  /* The big occupancy number */
+  .zone-occ {
+    font-size: clamp(72px, 10vw, 140px);
+    font-weight: 900;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -.03em;
+    color: var(--text);
+    transition: color .4s;
+  }
+  .zone-card.ok   .zone-occ { color: var(--ok); }
+  .zone-card.warn .zone-occ { color: var(--warn); }
+  .zone-card.crit .zone-occ { color: var(--crit); }
+
+  /* Capacity text */
+  .zone-cap { font-size: 14px; color: var(--muted); }
+
+  /* Progress bar */
+  .progress-track {
+    height: 4px; background: var(--border); border-radius: 2px; overflow: hidden;
+    margin-top: 4px;
+  }
+  .progress-fill {
+    height: 100%; border-radius: 2px;
+    transition: width .6s ease, background-color .4s;
+    background: var(--muted);
+  }
+  .zone-card.ok   .progress-fill { background: var(--ok); }
+  .zone-card.warn .progress-fill { background: var(--warn); }
+  .zone-card.crit .progress-fill { background: var(--crit); }
+
+  /* ---- Empty state ---- */
+  .empty-state {
+    grid-column: 1 / -1;
+    text-align: center; padding: 100px 20px;
+    color: var(--muted); font-size: 17px;
+  }
+</style>
+</head>
+<body>
+<header>
+  <span class="brand">PeoplePassage</span>
+  <div class="header-right">
+    <div class="conn">
+      <span id="connDot" class="conn-dot"></span>
+      <span id="connLabel" class="conn-label">Verbinde…</span>
+    </div>
+    <a href="/config" class="icon-btn" title="Konfiguration">⚙</a>
+    <button id="btnFullscreen" class="icon-btn" title="Vollbild" type="button">⛶</button>
+  </div>
+</header>
+
+<main id="grid" class="zone-grid">
+  <div id="emptyState" class="empty-state">Noch keine Zonen angelegt.</div>
+</main>
+
+<script>
+// Merkt sich die letzte Belegung pro Zone für den Flash-Effekt.
+const prevOcc = new Map();
+
+function zoneStatus(z) {
+  if (z.capacity == null || z.capacity === 0) return "ok";
+  const r = z.occupancy / z.capacity;
+  if (r >= 1.0) return "crit";
+  if (r >= 0.8) return "warn";
+  return "ok";
+}
+
+function capText(z) {
+  return z.capacity != null ? "/ " + z.capacity + " Pers." : "kein Limit";
+}
+
+function fillPct(z) {
+  if (z.capacity == null || z.capacity === 0) return 0;
+  return Math.min(100, (z.occupancy / z.capacity) * 100);
+}
+
+function buildCard(z, status) {
+  const card = document.createElement("div");
+  card.className = "zone-card " + status;
+  card.dataset.id = z.id;
+
+  const name = document.createElement("div");
+  name.className = "zone-name";
+  name.textContent = z.name;
+
+  const occ = document.createElement("div");
+  occ.className = "zone-occ";
+  occ.textContent = z.occupancy;
+
+  const cap = document.createElement("div");
+  cap.className = "zone-cap";
+  cap.textContent = capText(z);
+
+  card.appendChild(name);
+  card.appendChild(occ);
+  card.appendChild(cap);
+
+  if (z.capacity != null) {
+    const track = document.createElement("div");
+    track.className = "progress-track";
+    const fill = document.createElement("div");
+    fill.className = "progress-fill";
+    fill.style.width = fillPct(z) + "%";
+    track.appendChild(fill);
+    card.appendChild(track);
+  }
+  return card;
+}
+
+function render(zones) {
+  const grid = document.getElementById("grid");
+  const empty = document.getElementById("emptyState");
+
+  if (!zones.length) {
+    empty.hidden = false;
+    grid.querySelectorAll(".zone-card").forEach(c => c.remove());
+    return;
+  }
+  empty.hidden = true;
+
+  const existing = new Map(
+    [...grid.querySelectorAll(".zone-card")].map(c => [+c.dataset.id, c])
+  );
+  const seen = new Set();
+
+  for (const z of zones) {
+    seen.add(z.id);
+    const status = zoneStatus(z);
+    const pct = fillPct(z) + "%";
+
+    if (existing.has(z.id)) {
+      const card = existing.get(z.id);
+      const old = prevOcc.get(z.id);
+
+      // Flash wenn sich die Belegung geändert hat
+      if (old !== undefined && old !== z.occupancy) {
+        card.classList.remove("flashing");
+        void card.offsetWidth; // reflow erzwingen
+        card.classList.add("flashing");
+      }
+
+      card.className = "zone-card " + status;
+      card.querySelector(".zone-occ").textContent = z.occupancy;
+      card.querySelector(".zone-cap").textContent = capText(z);
+
+      const fill = card.querySelector(".progress-fill");
+      if (fill) fill.style.width = pct;
+    } else {
+      const card = buildCard(z, status);
+      grid.appendChild(card);
+    }
+
+    prevOcc.set(z.id, z.occupancy);
+  }
+
+  // Karten gelöschter Zonen entfernen
+  for (const [id, card] of existing) {
+    if (!seen.has(id)) { card.remove(); prevOcc.delete(id); }
+  }
+}
+
+function setConnected(on) {
+  document.getElementById("connDot").className = "conn-dot " + (on ? "live" : "dead");
+  document.getElementById("connLabel").textContent = on ? "Live" : "Getrennt…";
+}
+
+function connect() {
+  const es = new EventSource("/api/stream");
+  es.addEventListener("snapshot", ev => {
+    const snap = JSON.parse(ev.data);
+    setConnected(true);
+    render(snap.zones);
+  });
+  es.addEventListener("ping", () => setConnected(true));
+  es.onopen = () => setConnected(true);
+  es.onerror = () => setConnected(false);
+}
+
+// Vollbild
+document.getElementById("btnFullscreen").addEventListener("click", () => {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen();
+  } else {
+    document.exitFullscreen();
+  }
+});
+document.addEventListener("fullscreenchange", () => {
+  const btn = document.getElementById("btnFullscreen");
+  btn.title = document.fullscreenElement ? "Vollbild beenden" : "Vollbild";
+  btn.textContent = document.fullscreenElement ? "✕" : "⛶";
+});
+
+connect();
+</script>
+</body>
+</html>

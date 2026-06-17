@@ -16,7 +16,10 @@ from .db import Store
 from .export import build_csv
 from .models import ResetRequest, SensorUpdate, ZoneCreate, ZoneUpdate
 
-router = APIRouter(prefix="/api", dependencies=[Depends(require_auth)])
+# Öffentliche Endpunkte (nur lesend): kein Auth erforderlich.
+public_router = APIRouter(prefix="/api")
+# Schreibende Endpunkte + CSV-Export: Passwortschutz.
+private_router = APIRouter(prefix="/api", dependencies=[Depends(require_auth)])
 
 
 def get_store(request: Request) -> Store:
@@ -24,17 +27,17 @@ def get_store(request: Request) -> Store:
 
 
 # --------------------------------------------------------------------- Zonen
-@router.get("/zones")
+@public_router.get("/zones")
 def list_zones(store: Store = Depends(get_store)) -> list[dict]:
     return store.list_zones()
 
 
-@router.post("/zones", status_code=201)
+@private_router.post("/zones", status_code=201)
 def create_zone(payload: ZoneCreate, store: Store = Depends(get_store)) -> dict:
     return store.create_zone(payload.name, payload.capacity)
 
 
-@router.patch("/zones/{zone_id}")
+@private_router.patch("/zones/{zone_id}")
 def update_zone(
     zone_id: int, payload: ZoneUpdate, store: Store = Depends(get_store)
 ) -> dict:
@@ -50,14 +53,14 @@ def update_zone(
     return zone
 
 
-@router.delete("/zones/{zone_id}", status_code=204)
+@private_router.delete("/zones/{zone_id}", status_code=204)
 def delete_zone(zone_id: int, store: Store = Depends(get_store)) -> Response:
     if not store.delete_zone(zone_id):
         raise HTTPException(404, "Zone nicht gefunden")
     return Response(status_code=204)
 
 
-@router.post("/zones/{zone_id}/reset")
+@private_router.post("/zones/{zone_id}/reset")
 def reset_zone(
     zone_id: int,
     payload: Optional[ResetRequest] = None,
@@ -72,12 +75,12 @@ def reset_zone(
 
 
 # ------------------------------------------------------------------- Sensoren
-@router.get("/sensors")
+@public_router.get("/sensors")
 def list_sensors(store: Store = Depends(get_store)) -> list[dict]:
     return store.list_sensors()
 
 
-@router.patch("/sensors/{sensor_id}")
+@private_router.patch("/sensors/{sensor_id}")
 def update_sensor(
     sensor_id: str, payload: SensorUpdate, store: Store = Depends(get_store)
 ) -> dict:
@@ -112,14 +115,14 @@ def update_sensor(
     return sensor
 
 
-@router.delete("/sensors/{sensor_id}", status_code=204)
+@private_router.delete("/sensors/{sensor_id}", status_code=204)
 def delete_sensor(sensor_id: str, store: Store = Depends(get_store)) -> Response:
     if not store.delete_sensor(sensor_id):
         raise HTTPException(404, "Sensor nicht gefunden")
     return Response(status_code=204)
 
 
-@router.post("/sensors/{sensor_id}/calibrate")
+@private_router.post("/sensors/{sensor_id}/calibrate")
 def calibrate_sensor(sensor_id: str, store: Store = Depends(get_store)) -> dict:
     if store.get_sensor(sensor_id) is None:
         raise HTTPException(404, "Sensor nicht gefunden")
@@ -143,7 +146,7 @@ def _parse_ts(value: Optional[str], default: float) -> float:
         raise HTTPException(400, f"Ungültiger Zeitstempel: {value}")
 
 
-@router.get("/export.csv")
+@private_router.get("/export.csv")
 def export_csv(
     request: Request,
     store: Store = Depends(get_store),
@@ -167,7 +170,7 @@ def export_csv(
 
 
 # ------------------------------------------------------------------------ SSE
-@router.get("/stream")
+@public_router.get("/stream")
 async def stream(request: Request, store: Store = Depends(get_store)) -> EventSourceResponse:
     queue: asyncio.Queue = asyncio.Queue(maxsize=100)
     store.add_subscriber(queue)
