@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PeoplePassage – Konfiguration</title>
+<style>
+  :root {
+    --bg: #0a0e1a; --card: #111827; --card2: #1a2235; --text: #f1f5f9;
+    --muted: #64748b; --ok: #22c55e; --warn: #f59e0b; --crit: #ef4444;
+    --accent: #38bdf8; --border: #1e2a3a;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    background: var(--bg); color: var(--text);
+  }
+
+  /* ---- Header ---- */
+  header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 0 20px; height: 52px;
+    background: var(--card); border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 10;
+  }
+  .brand { font-size: 14px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+  .page-label {
+    font-size: 12px; color: var(--muted); padding: 3px 8px;
+    border: 1px solid var(--border); border-radius: 5px;
+  }
+  .header-spacer { flex: 1; }
+  .conn { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+  .dot.on { background: var(--ok); }
+  .dot.off { background: var(--crit); }
+  .back-link {
+    font-size: 13px; color: var(--muted); text-decoration: none;
+    padding: 5px 10px; border-radius: 6px; border: 1px solid var(--border);
+    transition: color .2s, border-color .2s;
+  }
+  .back-link:hover { color: var(--text); border-color: var(--accent); }
+
+  /* ---- Layout ---- */
+  main { padding: 20px; max-width: 1100px; margin: 0 auto; }
+  section { margin-bottom: 36px; }
+  h2 {
+    font-size: 11px; font-weight: 700; color: var(--muted);
+    text-transform: uppercase; letter-spacing: .1em;
+    margin-bottom: 12px;
+  }
+
+  /* ---- Compact zone list ---- */
+  .zone-list { display: flex; flex-direction: column; gap: 8px; }
+  .zone-row {
+    display: flex; align-items: center; gap: 12px;
+    background: var(--card); border: 1px solid var(--border);
+    border-left-width: 4px; border-radius: 8px;
+    padding: 10px 14px;
+  }
+  .zone-row.ok   { border-left-color: var(--ok); }
+  .zone-row.warn { border-left-color: var(--warn); }
+  .zone-row.crit { border-left-color: var(--crit); }
+  .zone-row-name { font-weight: 600; font-size: 14px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .zone-row-occ  { font-size: 22px; font-weight: 700; min-width: 3.5ch; text-align: right; font-variant-numeric: tabular-nums; }
+  .zone-row.ok   .zone-row-occ { color: var(--ok); }
+  .zone-row.warn .zone-row-occ { color: var(--warn); }
+  .zone-row.crit .zone-row-occ { color: var(--crit); }
+  .zone-row-cap  { font-size: 12px; color: var(--muted); min-width: 7ch; text-align: right; }
+  .zone-row-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+  /* ---- Card + form ---- */
+  .card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 10px; padding: 16px;
+  }
+  .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 12px; color: var(--muted); }
+
+  /* ---- Table ---- */
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
+  tr:last-child td { border-bottom: none; }
+
+  /* ---- Inputs ---- */
+  select, input[type="text"], input[type="number"], input[type="datetime-local"] {
+    background: var(--card2); color: var(--text); border: 1px solid var(--border);
+    border-radius: 6px; padding: 6px 9px; font-size: 13px;
+    font-family: inherit;
+  }
+  select:focus, input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  /* ---- Buttons ---- */
+  button {
+    background: var(--card2); color: var(--text); border: 1px solid var(--border);
+    border-radius: 7px; padding: 7px 13px; font-size: 13px; cursor: pointer;
+    font-family: inherit;
+    transition: border-color .2s, color .2s;
+  }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); color: #06283b; border-color: var(--accent); font-weight: 600; }
+  button.primary:hover { background: #7dd3fc; border-color: #7dd3fc; }
+  button.danger:hover { border-color: var(--crit); color: var(--crit); }
+
+  /* ---- Pills ---- */
+  .pill { font-size: 11px; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+  .pill.on  { background: rgba(34,197,94,.15); color: var(--ok); }
+  .pill.off { background: rgba(239,68,68,.15); color: var(--crit); }
+
+  /* ---- Misc ---- */
+  .muted { color: var(--muted); }
+  .empty { color: var(--muted); padding: 14px 0; font-size: 14px; }
+  details summary { cursor: pointer; font-size: 12px; color: var(--muted); margin-top: 10px; user-select: none; }
+  details p { font-size: 12px; color: var(--muted); margin-top: 6px; line-height: 1.6; }
+</style>
+</head>
+<body>
+<header>
+  <span class="brand">PeoplePassage</span>
+  <span class="page-label">Konfiguration</span>
+  <div class="header-spacer"></div>
+  <div class="conn">
+    <span id="connDot" class="dot"></span>
+    <span id="connText">Verbinde…</span>
+  </div>
+  <a href="/" class="back-link">← Dashboard</a>
+</header>
+
+<main>
+
+  <!-- Zonen -->
+  <section>
+    <h2>Zonen-Belegung</h2>
+    <div id="zoneList" class="zone-list">
+      <div class="empty">Noch keine Zonen angelegt.</div>
+    </div>
+  </section>
+
+  <!-- Zone hinzufügen -->
+  <section>
+    <h2>Zone hinzufügen</h2>
+    <div class="card">
+      <div class="row">
+        <div class="field">
+          <label for="zName">Name</label>
+          <input id="zName" type="text" placeholder="z. B. Halle" />
+        </div>
+        <div class="field">
+          <label for="zCap">Kapazität (optional)</label>
+          <input id="zCap" type="number" min="0" placeholder="—" />
+        </div>
+        <button id="btnCreateZone" class="primary" type="button">Zone hinzufügen</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Sensoren -->
+  <section>
+    <h2>Sensoren</h2>
+    <div class="card">
+      <table>
+        <thead><tr>
+          <th>Status</th><th>Sensor</th><th>Seite A</th><th>Seite B</th>
+          <th>Baseline</th><th>RSSI</th><th>Zuletzt gesehen</th><th></th>
+        </tr></thead>
+        <tbody id="sensorRows">
+          <tr><td colspan="8" class="empty">Noch keine Sensoren gemeldet.</td></tr>
+        </tbody>
+      </table>
+      <details>
+        <summary>Hinweise zur Kalibrierung</summary>
+        <p>
+          Richtung „rein/raus" lässt sich durch Tausch von Seite A und B korrigieren —
+          kein Neu-Flashen der Firmware nötig.<br>
+          Sensor nur kalibrieren, wenn sich niemand im Erfassungsbereich befindet.
+        </p>
+      </details>
+    </div>
+  </section>
+
+  <!-- CSV-Export -->
+  <section>
+    <h2>Chronik-Export (CSV, minutengenau)</h2>
+    <div class="card">
+      <div class="row">
+        <div class="field">
+          <label for="fromDt">Von</label>
+          <input id="fromDt" type="datetime-local" />
+        </div>
+        <div class="field">
+          <label for="toDt">Bis</label>
+          <input id="toDt" type="datetime-local" />
+        </div>
+        <button id="btnExportCsv" class="primary" type="button">CSV herunterladen</button>
+        <span class="muted" style="font-size:12px;align-self:center">Leer = letzte 24 Stunden</span>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script>
+let state = { zones: [], sensors: [] };
+
+function fmtTime(ts) {
+  if (!ts) return "—";
+  return new Date(ts * 1000).toLocaleString();
+}
+
+function zoneStatus(z) {
+  if (z.capacity == null || z.capacity === 0) return "ok";
+  const r = z.occupancy / z.capacity;
+  if (r >= 1.0) return "crit";
+  if (r >= 0.8) return "warn";
+  return "ok";
+}
+
+function capText(z) {
+  return z.capacity != null ? "/ " + z.capacity : "∞";
+}
+
+// Sicherer DOM-Helfer — kein innerHTML, kein XSS.
+function el(tag, opts = {}) {
+  const e = document.createElement(tag);
+  if (opts.text != null) e.textContent = opts.text;
+  if (opts.cls) e.className = opts.cls;
+  if (opts.style) e.setAttribute("style", opts.style);
+  return e;
+}
+
+function btn(label, cls, onClick) {
+  const b = el("button", { text: label, cls });
+  b.type = "button";
+  b.addEventListener("click", onClick);
+  return b;
+}
+
+function zoneSelect(selected, onChange) {
+  const sel = el("select");
+  const outside = el("option", { text: "— Außen —" });
+  outside.value = "";
+  if (selected == null) outside.selected = true;
+  sel.appendChild(outside);
+  for (const z of state.zones) {
+    const o = el("option", { text: z.name });
+    o.value = String(z.id);
+    if (z.id === selected) o.selected = true;
+    sel.appendChild(o);
+  }
+  sel.addEventListener("change", e => onChange(e.target.value));
+  return sel;
+}
+
+function render() {
+  renderZones();
+  renderSensors();
+}
+
+function renderZones() {
+  const list = document.getElementById("zoneList");
+  list.replaceChildren();
+  if (!state.zones.length) {
+    list.appendChild(el("div", { cls: "empty", text: "Noch keine Zonen angelegt." }));
+    return;
+  }
+  for (const z of state.zones) {
+    const status = zoneStatus(z);
+    const row = el("div", { cls: "zone-row " + status });
+
+    row.appendChild(el("div", { cls: "zone-row-name", text: z.name }));
+    row.appendChild(el("div", { cls: "zone-row-occ", text: String(z.occupancy) }));
+    row.appendChild(el("div", { cls: "zone-row-cap", text: capText(z) }));
+
+    const actions = el("div", { cls: "zone-row-actions" });
+    actions.appendChild(btn("Nullen", "danger", () => resetZone(z.id, z.name)));
+    actions.appendChild(btn("Löschen", "danger", () => deleteZone(z.id, z.name)));
+    row.appendChild(actions);
+
+    list.appendChild(row);
+  }
+}
+
+function renderSensors() {
+  const rows = document.getElementById("sensorRows");
+  rows.replaceChildren();
+  if (!state.sensors.length) {
+    const tr = el("tr");
+    const td = el("td", { cls: "empty", text: "Noch keine Sensoren gemeldet." });
+    td.setAttribute("colspan", "8");
+    tr.appendChild(td);
+    rows.appendChild(tr);
+    return;
+  }
+  for (const s of state.sensors) {
+    const tr = el("tr");
+
+    const tdStatus = el("td");
+    tdStatus.appendChild(el("span", {
+      cls: "pill " + (s.online ? "on" : "off"),
+      text: s.online ? "online" : "offline",
+    }));
+    tr.appendChild(tdStatus);
+
+    const tdName = el("td");
+    tdName.appendChild(el("strong", { text: s.name || s.id }));
+    if (s.name) {
+      tdName.appendChild(el("br"));
+      tdName.appendChild(el("span", { cls: "muted", style: "font-size:11px", text: s.id }));
+    }
+    tr.appendChild(tdName);
+
+    const tdA = el("td");
+    tdA.appendChild(zoneSelect(s.side_a_zone_id, v => setSide(s.id, "side_a_zone_id", v)));
+    tr.appendChild(tdA);
+
+    const tdB = el("td");
+    tdB.appendChild(zoneSelect(s.side_b_zone_id, v => setSide(s.id, "side_b_zone_id", v)));
+    tr.appendChild(tdB);
+
+    tr.appendChild(el("td", { text: s.baseline_mm != null ? s.baseline_mm + " mm" : "—" }));
+    tr.appendChild(el("td", { text: s.rssi != null ? s.rssi + " dBm" : "—" }));
+    tr.appendChild(el("td", { cls: "muted", style: "font-size:12px", text: fmtTime(s.last_seen) }));
+
+    const tdCal = el("td");
+    tdCal.appendChild(btn("Kalibrieren", "", () => calibrate(s.id)));
+    tr.appendChild(tdCal);
+
+    rows.appendChild(tr);
+  }
+}
+
+// ---- API ----
+async function api(method, url, body) {
+  const opt = { method, headers: {} };
+  if (body !== undefined) {
+    opt.headers["Content-Type"] = "application/json";
+    opt.body = JSON.stringify(body);
+  }
+  const r = await fetch(url, opt);
+  if (!r.ok) { alert("Fehler: " + r.status + " " + (await r.text())); throw new Error(r.status); }
+  return r.status === 204 ? null : r.json();
+}
+
+async function createZone() {
+  const name = document.getElementById("zName").value.trim();
+  if (!name) return alert("Bitte einen Namen eingeben.");
+  const capRaw = document.getElementById("zCap").value;
+  const body = { name };
+  if (capRaw !== "") {
+    const cap = Number.parseInt(capRaw, 10);
+    if (!Number.isInteger(cap) || cap < 0) return alert("Kapazität muss eine nicht-negative Zahl sein.");
+    body.capacity = cap;
+  }
+  await api("POST", "/api/zones", body);
+  document.getElementById("zName").value = "";
+  document.getElementById("zCap").value = "";
+}
+
+async function resetZone(id, name) {
+  if (!confirm(`Belegung von „${name}" auf 0 setzen?`)) return;
+  await api("POST", `/api/zones/${id}/reset`, { reason: "Dashboard" });
+}
+
+async function deleteZone(id, name) {
+  if (!confirm(`Zone „${name}" löschen? Sensor-Zuordnungen werden gelöst.`)) return;
+  await api("DELETE", `/api/zones/${id}`);
+}
+
+async function setSide(sensorId, side, value) {
+  const body = {};
+  body[side] = value === "" ? null : parseInt(value, 10);
+  await api("PATCH", `/api/sensors/${sensorId}`, body);
+}
+
+async function calibrate(sensorId) {
+  if (!confirm(`Sensor „${sensorId}" kalibrieren?\n(Nur wenn niemand im Erfassungsbereich steht.)`)) return;
+  await api("POST", `/api/sensors/${sensorId}/calibrate`);
+  alert("Kalibrier-Kommando gesendet.");
+}
+
+function exportCsv() {
+  const params = new URLSearchParams();
+  const f = document.getElementById("fromDt").value;
+  const t = document.getElementById("toDt").value;
+  if (f) params.set("from", Math.floor(new Date(f).getTime() / 1000));
+  if (t) params.set("to", Math.floor(new Date(t).getTime() / 1000));
+  const qs = params.toString();
+  window.location = "/api/export.csv" + (qs ? "?" + qs : "");
+}
+
+// ---- SSE ----
+function setConn(on) {
+  document.getElementById("connDot").className = "dot " + (on ? "on" : "off");
+  document.getElementById("connText").textContent = on ? "Live" : "Getrennt…";
+}
+
+function connect() {
+  const es = new EventSource("/api/stream");
+  es.addEventListener("snapshot", ev => {
+    state = JSON.parse(ev.data);
+    setConn(true);
+    render();
+  });
+  es.addEventListener("ping", () => setConn(true));
+  es.onopen = () => setConn(true);
+  es.onerror = () => setConn(false);
+}
+
+document.getElementById("btnCreateZone").addEventListener("click", createZone);
+document.getElementById("btnExportCsv").addEventListener("click", exportCsv);
+connect();
+</script>
+</body>
+</html>
