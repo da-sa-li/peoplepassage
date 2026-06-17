@@ -31,7 +31,7 @@ import random
 import signal
 import sys
 import time
-from typing import Optional
+from typing import Any, Optional
 
 import paho.mqtt.client as mqtt
 
@@ -60,11 +60,14 @@ class Simulator:
     def __init__(self, args: argparse.Namespace) -> None:
         self.args = args
         self.sensors = [s.strip() for s in args.sensors.split(",") if s.strip()]
-        self.seq = {s: 0 for s in self.sensors}
-        self.baseline = {s: random.randint(2200, 2600) for s in self.sensors}
+        if not self.sensors:
+            raise SystemExit("Mindestens eine Sensor-ID erforderlich (--sensors).")
+        # Eine einzige, optional geseedete RNG für reproduzierbare Läufe.
+        self.rng = random.Random(args.seed)
+        self.seq = dict.fromkeys(self.sensors, 0)
+        self.baseline = {s: self.rng.randint(2200, 2600) for s in self.sensors}
         self.start = time.time()
         self.running = True
-        self.rng = random.Random(args.seed)
 
         self.client = mqtt.Client(
             mqtt.CallbackAPIVersion.VERSION2, client_id=f"pp-sim-{os.getpid()}"
@@ -73,7 +76,14 @@ class Simulator:
             self.client.username_pw_set(args.username, args.password)
         self.client.on_connect = self._on_connect
 
-    def _on_connect(self, client, userdata, flags, reason_code, properties=None) -> None:
+    def _on_connect(
+        self,
+        client: Any,
+        userdata: Any,
+        flags: Any,
+        reason_code: Any,
+        properties: Any = None,
+    ) -> None:
         if reason_code != 0:
             print(f"[sim] Verbindung fehlgeschlagen: {reason_code}", file=sys.stderr)
             return
@@ -81,15 +91,17 @@ class Simulator:
         for s in self.sensors:
             self._publish_status(s, online=True)
 
-    def _publish_status(self, sensor_id: str, online: bool) -> None:
+    def _publish_status(self, sensor_id: str, online: bool) -> Any:
         payload = status_payload(
             rssi=self.rng.randint(-80, -45),
             baseline_mm=self.baseline[sensor_id],
             online=online,
             uptime=time.time() - self.start,
         )
-        # retained, damit der Server den letzten Status auch nach Reconnect kennt
-        self.client.publish(f"{TOPIC_PREFIX}/{sensor_id}/status", json.dumps(payload), retain=True)
+        # retained + qos=1, damit der Server den letzten Status zuverlässig kennt
+        return self.client.publish(
+            f"{TOPIC_PREFIX}/{sensor_id}/status", json.dumps(payload), qos=1, retain=True
+        )
 
     def _publish_event(self, sensor_id: str, direction: str) -> None:
         self.seq[sensor_id] += 1
@@ -122,8 +134,13 @@ class Simulator:
 
     def shutdown(self) -> None:
         # Sensoren als offline markieren (entspricht dem LWT der echten Firmware)
-        for s in self.sensors:
-            self._publish_status(s, online=False)
+        # und auf die Zustellung warten, bevor die Verbindung geschlossen wird.
+        infos = [self._publish_status(s, online=False) for s in self.sensors]
+        for info in infos:
+            try:
+                info.wait_for_publish(timeout=2)
+            except Exception:
+                pass
         self.client.loop_stop()
         self.client.disconnect()
         print(f"[sim] beendet ({sum(self.seq.values())} Events gesendet)")

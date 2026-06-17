@@ -161,14 +161,43 @@ static void publishStatus(bool online) {
   mqtt.publish(T_STATUS.c_str(), buf, true);  // retained
 }
 
-static void publishEvent(int direction) {
-  g_seq++;
-  saveSeq();
+// Liefert false, wenn das Publish fehlschlug (seq wird dann NICHT verbraucht,
+// das Ereignis bleibt in der Warteschlange und wird später erneut versucht).
+static bool publishEvent(int direction) {
+  uint32_t next = g_seq + 1;
   char buf[64];
   snprintf(buf, sizeof(buf), "{\"seq\":%lu,\"direction\":\"%s\"}",
-           (unsigned long)g_seq, direction == 1 ? "in" : "out");
-  mqtt.publish(T_EVENT.c_str(), buf, false);
+           (unsigned long)next, direction == 1 ? "in" : "out");
+  if (!mqtt.publish(T_EVENT.c_str(), buf, false)) return false;
+  g_seq = next;
+  saveSeq();
   Serial.printf("event #%lu %s\n", (unsigned long)g_seq, direction == 1 ? "in" : "out");
+  return true;
+}
+
+// Bounded Ring-Puffer: Durchgänge gehen bei kurzem MQTT-Ausfall nicht verloren.
+#define EVENT_QUEUE_SIZE 32
+static int8_t  g_queue[EVENT_QUEUE_SIZE];
+static uint8_t g_qHead = 0;
+static uint8_t g_qCount = 0;
+
+static void enqueueEvent(int direction) {
+  if (g_qCount == EVENT_QUEUE_SIZE) {
+    // Puffer voll -> ältestes Ereignis verwerfen
+    g_qHead = (uint8_t)((g_qHead + 1) % EVENT_QUEUE_SIZE);
+    g_qCount--;
+  }
+  uint8_t tail = (uint8_t)((g_qHead + g_qCount) % EVENT_QUEUE_SIZE);
+  g_queue[tail] = (int8_t)direction;
+  g_qCount++;
+}
+
+static void flushQueue() {
+  while (g_qCount > 0 && mqtt.connected()) {
+    if (!publishEvent(g_queue[g_qHead])) break;  // bei Fehler später erneut versuchen
+    g_qHead = (uint8_t)((g_qHead + 1) % EVENT_QUEUE_SIZE);
+    g_qCount--;
+  }
 }
 
 // Baseline neu vermessen (nur ausführen, wenn niemand unter dem Sensor steht).
@@ -262,13 +291,14 @@ void loop() {
   ensureMqtt();
   mqtt.loop();
 
-  // Eine Zone messen, Zustandsmaschine füttern, ggf. Event senden.
+  // Eine Zone messen, Zustandsmaschine füttern, ggf. Event puffern/senden.
   uint16_t d = measureZone(g_zone);
-  int dir = processCounting((int16_t)d, g_zone);
-  if (dir != 0 && mqtt.connected()) {
-    publishEvent(dir);
+  if (d != 0) {  // 0 = ungültige/Timeout-Messung -> ignorieren (kein Fehl-Trigger)
+    int dir = processCounting((int16_t)d, g_zone);
+    if (dir != 0) enqueueEvent(dir);
   }
-  g_zone ^= 1;  // Zone für nächste Messung wechseln
+  flushQueue();  // gepufferte Ereignisse senden, sobald MQTT verbunden ist
+  g_zone ^= 1;   // Zone für nächste Messung wechseln
 
   // Heartbeat alle 15 s
   if (millis() - g_last_status > 15000) {

@@ -77,9 +77,9 @@
   <h2>Zone anlegen</h2>
   <div class="card">
     <div class="row">
-      <div class="field"><label>Name</label><input id="zName" placeholder="z. B. Halle" /></div>
-      <div class="field"><label>Kapazität (optional)</label><input id="zCap" type="number" min="0" placeholder="—" /></div>
-      <button class="primary" onclick="createZone()">Zone hinzufügen</button>
+      <div class="field"><label for="zName">Name</label><input id="zName" placeholder="z. B. Halle" /></div>
+      <div class="field"><label for="zCap">Kapazität (optional)</label><input id="zCap" type="number" min="0" placeholder="—" /></div>
+      <button id="btnCreateZone" class="primary" type="button">Zone hinzufügen</button>
     </div>
   </div>
 
@@ -100,9 +100,9 @@
   <h2>Chronik-Export (CSV, minutengenau)</h2>
   <div class="card">
     <div class="row">
-      <div class="field"><label>Von</label><input id="from" type="datetime-local" /></div>
-      <div class="field"><label>Bis</label><input id="to" type="datetime-local" /></div>
-      <button class="primary" onclick="exportCsv()">CSV herunterladen</button>
+      <div class="field"><label for="from">Von</label><input id="from" type="datetime-local" /></div>
+      <div class="field"><label for="to">Bis</label><input id="to" type="datetime-local" /></div>
+      <button id="btnExportCsv" class="primary" type="button">CSV herunterladen</button>
       <span class="muted" style="font-size:12px">Leer = letzte 24 Stunden.</span>
     </div>
   </div>
@@ -123,51 +123,102 @@ function tileClass(z) {
   if (r >= 0.8) return "warn";
   return "ok";
 }
-function zoneOptions(selected) {
-  let opts = '<option value="">— Außen —</option>';
-  for (const z of state.zones) {
-    opts += `<option value="${z.id}" ${z.id === selected ? "selected" : ""}>${esc(z.name)}</option>`;
-  }
-  return opts;
+// Kleiner DOM-Helfer. Texte werden ausschließlich über textContent gesetzt,
+// daher ist keine HTML-Escaping-Logik nötig (XSS-sicher, kein innerHTML).
+function el(tag, opts = {}) {
+  const e = document.createElement(tag);
+  if (opts.text != null) e.textContent = opts.text;
+  if (opts.cls) e.className = opts.cls;
+  if (opts.style) e.setAttribute("style", opts.style);
+  return e;
 }
-function esc(s) {
-  return String(s ?? "").replace(/[&<>"']/g, c => (
-    {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+function zoneSelect(selected, onChange) {
+  const sel = el("select");
+  const outside = el("option", { text: "— Außen —" });
+  outside.value = "";
+  if (selected == null) outside.selected = true;
+  sel.appendChild(outside);
+  for (const z of state.zones) {
+    const o = el("option", { text: z.name });
+    o.value = String(z.id);
+    if (z.id === selected) o.selected = true;
+    sel.appendChild(o);
+  }
+  sel.addEventListener("change", e => onChange(e.target.value));
+  return sel;
+}
+function button(label, cls, onClick) {
+  const b = el("button", { text: label, cls });
+  b.type = "button";
+  b.addEventListener("click", onClick);
+  return b;
 }
 
 function render() {
   // Zone tiles
   const tiles = document.getElementById("tiles");
+  tiles.replaceChildren();
   if (!state.zones.length) {
-    tiles.innerHTML = '<div class="empty">Noch keine Zonen angelegt.</div>';
+    tiles.appendChild(el("div", { cls: "empty", text: "Noch keine Zonen angelegt." }));
   } else {
-    tiles.innerHTML = state.zones.map(z => `
-      <div class="tile ${tileClass(z)}">
-        <div class="name">${esc(z.name)}</div>
-        <div class="occ">${z.occupancy}</div>
-        <div class="cap">${z.capacity != null ? "/ " + z.capacity + " Pers." : "ohne Limit"}</div>
-        <div class="actions">
-          <button class="danger" onclick="resetZone(${z.id}, '${esc(z.name)}')">Nullen</button>
-          <button class="danger" onclick="deleteZone(${z.id}, '${esc(z.name)}')">Löschen</button>
-        </div>
-      </div>`).join("");
+    for (const z of state.zones) {
+      const tile = el("div", { cls: "tile " + tileClass(z) });
+      tile.appendChild(el("div", { cls: "name", text: z.name }));
+      tile.appendChild(el("div", { cls: "occ", text: String(z.occupancy) }));
+      tile.appendChild(el("div", {
+        cls: "cap",
+        text: z.capacity != null ? "/ " + z.capacity + " Pers." : "ohne Limit",
+      }));
+      const actions = el("div", { cls: "actions" });
+      actions.appendChild(button("Nullen", "danger", () => resetZone(z.id, z.name)));
+      actions.appendChild(button("Löschen", "danger", () => deleteZone(z.id, z.name)));
+      tile.appendChild(actions);
+      tiles.appendChild(tile);
+    }
   }
   // Sensors
   const rows = document.getElementById("sensorRows");
+  rows.replaceChildren();
   if (!state.sensors.length) {
-    rows.innerHTML = '<tr><td colspan="8" class="empty">Noch keine Sensoren gemeldet.</td></tr>';
-  } else {
-    rows.innerHTML = state.sensors.map(s => `
-      <tr>
-        <td><span class="pill ${s.online ? "on" : "off"}">${s.online ? "online" : "offline"}</span></td>
-        <td><strong>${esc(s.name || s.id)}</strong><br><span class="muted" style="font-size:12px">${esc(s.id)}</span></td>
-        <td><select onchange="setSide('${esc(s.id)}','side_a_zone_id',this.value)">${zoneOptions(s.side_a_zone_id)}</select></td>
-        <td><select onchange="setSide('${esc(s.id)}','side_b_zone_id',this.value)">${zoneOptions(s.side_b_zone_id)}</select></td>
-        <td>${s.baseline_mm != null ? s.baseline_mm + " mm" : "—"}</td>
-        <td>${s.rssi != null ? s.rssi + " dBm" : "—"}</td>
-        <td class="muted" style="font-size:12px">${fmtTime(s.last_seen)}</td>
-        <td><button onclick="calibrate('${esc(s.id)}')">Kalibrieren</button></td>
-      </tr>`).join("");
+    const tr = el("tr");
+    const td = el("td", { cls: "empty", text: "Noch keine Sensoren gemeldet." });
+    td.setAttribute("colspan", "8");
+    tr.appendChild(td);
+    rows.appendChild(tr);
+    return;
+  }
+  for (const s of state.sensors) {
+    const tr = el("tr");
+
+    const tdStatus = el("td");
+    tdStatus.appendChild(el("span", {
+      cls: "pill " + (s.online ? "on" : "off"),
+      text: s.online ? "online" : "offline",
+    }));
+    tr.appendChild(tdStatus);
+
+    const tdName = el("td");
+    tdName.appendChild(el("strong", { text: s.name || s.id }));
+    tdName.appendChild(el("br"));
+    tdName.appendChild(el("span", { cls: "muted", style: "font-size:12px", text: s.id }));
+    tr.appendChild(tdName);
+
+    const tdA = el("td");
+    tdA.appendChild(zoneSelect(s.side_a_zone_id, v => setSide(s.id, "side_a_zone_id", v)));
+    tr.appendChild(tdA);
+    const tdB = el("td");
+    tdB.appendChild(zoneSelect(s.side_b_zone_id, v => setSide(s.id, "side_b_zone_id", v)));
+    tr.appendChild(tdB);
+
+    tr.appendChild(el("td", { text: s.baseline_mm != null ? s.baseline_mm + " mm" : "—" }));
+    tr.appendChild(el("td", { text: s.rssi != null ? s.rssi + " dBm" : "—" }));
+    tr.appendChild(el("td", { cls: "muted", style: "font-size:12px", text: fmtTime(s.last_seen) }));
+
+    const tdCal = el("td");
+    tdCal.appendChild(button("Kalibrieren", "", () => calibrate(s.id)));
+    tr.appendChild(tdCal);
+
+    rows.appendChild(tr);
   }
 }
 
@@ -183,7 +234,12 @@ async function createZone() {
   const name = document.getElementById("zName").value.trim();
   if (!name) return alert("Bitte einen Namen eingeben.");
   const capRaw = document.getElementById("zCap").value;
-  const body = { name }; if (capRaw !== "") body.capacity = parseInt(capRaw, 10);
+  const body = { name };
+  if (capRaw !== "") {
+    const cap = Number.parseInt(capRaw, 10);
+    if (!Number.isInteger(cap) || cap < 0) return alert("Kapazität muss eine nicht-negative Zahl sein.");
+    body.capacity = cap;
+  }
   await api("POST", "/api/zones", body);
   document.getElementById("zName").value = ""; document.getElementById("zCap").value = "";
 }
@@ -227,6 +283,8 @@ function connect() {
   es.onopen = () => setConn(true);
   es.onerror = () => { setConn(false); /* EventSource reconnects automatically */ };
 }
+document.getElementById("btnCreateZone").addEventListener("click", createZone);
+document.getElementById("btnExportCsv").addEventListener("click", exportCsv);
 connect();
 </script>
 </body>
