@@ -50,8 +50,14 @@ Legende: `[ ]` offen · `[~]` in Arbeit · `[x]` fertig
 
 ### Phase 4 — Test ohne Hardware & Verifikation
 
-- [ ] `tools/sim_sensor.py` (MQTT-Simulator mehrerer Sensoren)
-- [ ] End-to-End-Verifikation gemäß Checkliste in `CLAUDE.md`
+- [x] `tools/sim_sensor.py` (MQTT-Simulator mehrerer Sensoren; status/event, LWT-Offline,
+      konfigurierbar via Args/Env)
+- [x] End-to-End-Verifikation gemäß Checkliste in `CLAUDE.md` (Simulator-Format →
+      MQTT-Bridge → Belegung inkl. geteilter Tür → API → SSE-Snapshot → Reset →
+      Calibrate → minutengenaues CSV → Offline-Erkennung). Alle grün.
+- Hinweis: Ein *Live*-Lauf des Simulators braucht einen MQTT-Broker
+      (`docker compose up`); die Verifikation hier nutzt den realen Server-Pfad
+      (`MqttBridge._on_message`) ohne Broker.
 
 ### Phase 5 — Firmware (ESP32 + VL53L1X)
 
@@ -74,9 +80,9 @@ Legende: `[ ]` offen · `[~]` in Arbeit · `[x]` fertig
 
 ## Was als Nächstes
 
-→ **Phase 4**: Sensor-Simulator (`tools/sim_sensor.py`, MQTT) + End-to-End-Verifikation
-gemäß Checkliste in `CLAUDE.md` (Dashboard live, geteilte Tür, Nullen, Kalibrieren,
-CSV, Offline-Erkennung) — idealerweise auf einem Host mit Docker-Daemon.
+→ **Phase 5**: ESP32-Firmware (PlatformIO) — VL53L1X Dual-ROI-Richtungserkennung, WiFi,
+MQTT (event/status mit LWT), `calibrate`-Kommando; `pio run` Kompilier-Check; Montage-/
+Kalibrierungs-Doku in `firmware/README.md`.
 
 Hinweise:
 - In dieser Umgebung läuft kein Docker-Daemon — `docker compose build`/`up` muss auf
@@ -106,3 +112,7 @@ Hinweise:
 - 2026-06-17: Phase 3 umgesetzt — Dashboard (`server/app/web/index.html`) + Route `GET /`.
   Live-Kacheln, Sensor-Health, Nullen/Kalibrieren/Zonen-Config, CSV-Export, SSE-Live.
   Verifiziert via TestClient (Auth 401/200, HTML ausgeliefert, API-Verdrahtung).
+- 2026-06-17: Phase 4 umgesetzt — `tools/sim_sensor.py` (MQTT-Simulator) + E2E-Verifikation
+  über den realen Server-Pfad (ohne Broker): Auto-Registrierung, geteilte Tür (Halle/
+  Backstage), Dedupe, SSE-Snapshot, Reset, Calibrate, minutengenaues CSV, Offline nach
+  Timeout — alle grün.
