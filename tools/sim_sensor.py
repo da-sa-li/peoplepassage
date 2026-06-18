@@ -64,7 +64,8 @@ class Simulator:
             raise SystemExit("Mindestens eine Sensor-ID erforderlich (--sensors).")
         # Eine einzige, optional geseedete RNG für reproduzierbare Läufe.
         self.rng = random.Random(args.seed)
-        self.seq = dict.fromkeys(self.sensors, 0)
+        self._seq_start = int(time.time())
+        self.seq = dict.fromkeys(self.sensors, self._seq_start)
         self.baseline = {s: self.rng.randint(2200, 2600) for s in self.sensors}
         self.start = time.time()
         self.running = True
@@ -143,7 +144,8 @@ class Simulator:
                 pass
         self.client.loop_stop()
         self.client.disconnect()
-        print(f"[sim] beendet ({sum(self.seq.values())} Events gesendet)")
+        sent = sum(self.seq.values()) - self._seq_start * len(self.sensors)
+        print(f"[sim] beendet ({sent} Events gesendet)")
 
 
 def parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
