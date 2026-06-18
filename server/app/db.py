@@ -100,6 +100,11 @@ class Store:
         self._conn.execute("PRAGMA foreign_keys=ON")
         self._conn.executescript(SCHEMA)
         _ensure_column(self._conn, "zones", "is_external", "INTEGER NOT NULL DEFAULT 0")
+        # Erst nach der Spalten-Migration anlegen, da der Index `is_external` referenziert.
+        self._conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS ux_zones_single_external "
+            "ON zones(is_external) WHERE is_external = 1"
+        )
         self._conn.commit()
 
         self._lock = threading.RLock()
@@ -206,23 +211,26 @@ class Store:
 
     def ensure_external_zone(self, default_name: str) -> dict:
         """Externe (pretix-)Zone idempotent sicherstellen: vorhandene zurückgeben,
-        sonst neu anlegen. Es kann höchstens eine externe Zone geben."""
+        sonst neu anlegen. Höchstens eine externe Zone wird zusätzlich per partiellem
+        UNIQUE-Index (`ux_zones_single_external`) auf DB-Ebene erzwungen; `INSERT OR
+        IGNORE` + Re-Select macht das robust gegen eine Race auf die Invariante."""
         with self._lock:
             r = self._conn.execute(
                 "SELECT id, name, capacity, is_external FROM zones WHERE is_external = 1 LIMIT 1"
             ).fetchone()
-            if r is not None:
-                return self._zone_row(r)
-            cur = self._conn.execute(
-                "INSERT INTO zones (name, capacity, created_at, is_external) "
-                "VALUES (?, NULL, ?, 1)",
-                (default_name, time.time()),
-            )
-            self._conn.commit()
-            zid = int(cur.lastrowid)
-            self._occ[zid] = 0
+            if r is None:
+                self._conn.execute(
+                    "INSERT OR IGNORE INTO zones (name, capacity, created_at, is_external) "
+                    "VALUES (?, NULL, ?, 1)",
+                    (default_name, time.time()),
+                )
+                self._conn.commit()
+                r = self._conn.execute(
+                    "SELECT id, name, capacity, is_external FROM zones WHERE is_external = 1 LIMIT 1"
+                ).fetchone()
+            self._occ.setdefault(r["id"], 0)
         self._notify()
-        return self.get_zone(zid)  # type: ignore[return-value]
+        return self._zone_row(r)
 
     def update_zone(
         self, zone_id: int, name: Optional[str], capacity: Optional[int], set_capacity: bool

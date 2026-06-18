@@ -73,7 +73,10 @@ def reset_zone(
     if current["is_external"]:
         raise HTTPException(400, "Externe Zone wird automatisch berechnet und kann nicht genullt werden")
     reason = payload.reason if payload else None
-    return store.reset_zone(zone_id, reason=reason, actor=actor)
+    updated = store.reset_zone(zone_id, reason=reason, actor=actor)
+    if updated is None:
+        raise HTTPException(404, "Zone nicht gefunden")
+    return updated
 
 
 # ------------------------------------------------------------------- Sensoren
