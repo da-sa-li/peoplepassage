@@ -21,6 +21,9 @@ minutengenauer Auflösung**.
 - **Zone nullen** (auditierbar) und **Sensor kalibrieren** direkt aus dem Dashboard.
 - **CSV-Export** der Chronik, minutengenau.
 - **Passwortschutz** für Dashboard und Aktionen.
+- **Optionale pretix-Integration**: zweite, unabhängige Zählquelle über die
+  pretix-Checkin-API — die Differenz zur Summe aller TOF-Zonen wird als berechnete
+  „Restgelände"-Zone angezeigt (siehe unten).
 
 ## Architektur
 
@@ -51,7 +54,7 @@ mosquitto/     MQTT-Broker-Konfiguration + Entrypoint (Passwortdatei aus Env)
 firmware/      ESP32/PlatformIO-Projekt (VL53L1X, WLAN, MQTT, calibrate)
 tools/         sim_sensor.py – MQTT-Sensor-Simulator zum Testen ohne Hardware
 docker-compose.yml   mosquitto + app
-.env.example   DASHBOARD_PASSWORD, MQTT_USERNAME, MQTT_PASSWORD
+.env.example   DASHBOARD_PASSWORD, MQTT_USERNAME, MQTT_PASSWORD, optional PRETIX_*
 ```
 
 ## Schnellstart (Server)
@@ -106,6 +109,19 @@ Alle `/api/*`-Routen sind passwortgeschützt (HTTP Basic).
 - Kommando (Server→Sensor): `peoplepassage/<id>/cmd` → `{cmd:"calibrate"|"reboot"}`
 
 Idempotenz über `(sensor_id, seq)`; die Sequenznummer wird in der Firmware (NVS) persistiert.
+
+## pretix-Integration (optional)
+
+Wenn `PRETIX_BASE_URL`, `PRETIX_API_TOKEN`, `PRETIX_ORGANIZER`, `PRETIX_EVENT` und
+`PRETIX_CHECKINLIST_ID` in der `.env` gesetzt sind, fragt der Server periodisch
+(`PRETIX_POLL_INTERVAL_S`, Default 30 s) die laut Ticketkontrolle aktuell anwesende
+Gesamtzahl ab (`inside_count` der pretix-Checkin-Liste) und legt automatisch eine
+berechnete Zone „Restgelände" (`PRETIX_REMAINDER_ZONE_NAME`) an: ihre Belegung ist die
+Differenz `pretix-Gesamt − Summe aller TOF-Zonen`, also die Personenzahl außerhalb jeder
+sensorerfassten Zone. Die Zone erscheint wie jede andere auf Dashboard und Config-Seite
+(inkl. optionaler Kapazität mit Grün/Orange/Rot-Warnung), kann aber keinem Sensor zugeordnet
+und nicht „genullt" werden. Ohne diese Variablen bleibt die Integration vollständig
+deaktiviert. Details: [`CLAUDE.md`](./CLAUDE.md#pretix-integration-optional).
 
 ## Firmware
 

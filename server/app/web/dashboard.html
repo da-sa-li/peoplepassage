@@ -17,6 +17,8 @@
     --crit:      #ef4444;
     --crit-glow: rgba(239, 68, 68, .22);
     --border:    #1e2a3a;
+    --unknown:      #38bdf8;
+    --unknown-glow: rgba(56, 189, 248, .18);
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -89,13 +91,21 @@
     background: var(--muted);
     transition: background .4s;
   }
-  .zone-card.ok::before   { background: var(--ok); }
-  .zone-card.warn::before { background: var(--warn); }
-  .zone-card.crit::before { background: var(--crit); }
+  .zone-card.ok::before      { background: var(--ok); }
+  .zone-card.warn::before    { background: var(--warn); }
+  .zone-card.crit::before    { background: var(--crit); }
+  .zone-card.unknown::before { background: var(--unknown); }
 
-  .zone-card.ok   { box-shadow: 0 0 28px var(--ok-glow); }
-  .zone-card.warn { box-shadow: 0 0 28px var(--warn-glow); }
-  .zone-card.crit { box-shadow: 0 0 28px var(--crit-glow); }
+  .zone-card.ok      { box-shadow: 0 0 28px var(--ok-glow); }
+  .zone-card.warn    { box-shadow: 0 0 28px var(--warn-glow); }
+  .zone-card.crit    { box-shadow: 0 0 28px var(--crit-glow); }
+  .zone-card.unknown { box-shadow: 0 0 28px var(--unknown-glow); }
+
+  /* Externe (berechnete) Zone, z. B. pretix-Restgelände */
+  .zone-card.ext { border-style: dashed; }
+  .zone-ext-tag {
+    font-size: 11px; color: var(--unknown); letter-spacing: .04em;
+  }
 
   /* Crit pulse */
   @keyframes crit-pulse {
@@ -128,9 +138,10 @@
     color: var(--text);
     transition: color .4s;
   }
-  .zone-card.ok   .zone-occ { color: var(--ok); }
-  .zone-card.warn .zone-occ { color: var(--warn); }
-  .zone-card.crit .zone-occ { color: var(--crit); }
+  .zone-card.ok      .zone-occ { color: var(--ok); }
+  .zone-card.warn    .zone-occ { color: var(--warn); }
+  .zone-card.crit    .zone-occ { color: var(--crit); }
+  .zone-card.unknown .zone-occ { color: var(--unknown); }
 
   /* Capacity text */
   .zone-cap { font-size: 14px; color: var(--muted); }
@@ -145,9 +156,10 @@
     transition: width .6s ease, background-color .4s;
     background: var(--muted);
   }
-  .zone-card.ok   .progress-fill { background: var(--ok); }
-  .zone-card.warn .progress-fill { background: var(--warn); }
-  .zone-card.crit .progress-fill { background: var(--crit); }
+  .zone-card.ok      .progress-fill { background: var(--ok); }
+  .zone-card.warn    .progress-fill { background: var(--warn); }
+  .zone-card.crit    .progress-fill { background: var(--crit); }
+  .zone-card.unknown .progress-fill { background: var(--unknown); }
 
   /* ---- Empty state ---- */
   .empty-state {
@@ -179,6 +191,7 @@
 const prevOcc = new Map();
 
 function zoneStatus(z) {
+  if (z.occupancy == null) return "unknown";
   if (z.capacity == null || z.capacity === 0) return "ok";
   const r = z.occupancy / z.capacity;
   if (r >= 1.0) return "crit";
@@ -186,18 +199,22 @@ function zoneStatus(z) {
   return "ok";
 }
 
+function occText(z) {
+  return z.occupancy == null ? "—" : String(z.occupancy);
+}
+
 function capText(z) {
   return z.capacity != null ? "/ " + z.capacity + " Pers." : "kein Limit";
 }
 
 function fillPct(z) {
-  if (z.capacity == null || z.capacity === 0) return 0;
+  if (z.occupancy == null || z.capacity == null || z.capacity === 0) return 0;
   return Math.min(100, (z.occupancy / z.capacity) * 100);
 }
 
 function buildCard(z, status) {
   const card = document.createElement("div");
-  card.className = "zone-card " + status;
+  card.className = "zone-card " + status + (z.is_external ? " ext" : "");
   card.dataset.id = z.id;
 
   const name = document.createElement("div");
@@ -206,7 +223,7 @@ function buildCard(z, status) {
 
   const occ = document.createElement("div");
   occ.className = "zone-occ";
-  occ.textContent = z.occupancy;
+  occ.textContent = occText(z);
 
   const cap = document.createElement("div");
   cap.className = "zone-cap";
@@ -215,6 +232,13 @@ function buildCard(z, status) {
   card.appendChild(name);
   card.appendChild(occ);
   card.appendChild(cap);
+
+  if (z.is_external) {
+    const tag = document.createElement("div");
+    tag.className = "zone-ext-tag";
+    tag.textContent = "Extern · pretix";
+    card.appendChild(tag);
+  }
 
   if (z.capacity != null) {
     const track = document.createElement("div");
@@ -260,8 +284,8 @@ function render(zones) {
         card.classList.add("flashing");
       }
 
-      card.className = "zone-card " + status;
-      card.querySelector(".zone-occ").textContent = z.occupancy;
+      card.className = "zone-card " + status + (z.is_external ? " ext" : "");
+      card.querySelector(".zone-occ").textContent = occText(z);
       card.querySelector(".zone-cap").textContent = capText(z);
 
       const fill = card.querySelector(".progress-fill");

@@ -74,6 +74,21 @@ Legende: `[ ]` offen · `[~]` in Arbeit · `[x]` fertig
 - [x] Top-Level `README.md` (Gesamtüberblick, Architektur, Setup, Betrieb, API/MQTT,
       Verweise auf `CLAUDE.md`/`ROADMAP.md`/`firmware/README.md`)
 
+### Phase 7 — pretix-Checkin-Integration (optional)
+
+- [x] `app/db.py` — `is_external`-Spalte (Inline-Migration), `Store._external_occupancy`,
+      `ensure_external_zone`, `set_pretix_total`/`set_pretix_error`/`pretix_sync_status`
+- [x] `app/pretix.py` — schlanker async-Client (`fetch_inside_count`, `httpx`)
+- [x] `app/main.py` — `PRETIX_*`-Settings, `_pretix_poller` (analog Offline-Sweeper),
+      Task nur bei vollständiger Konfiguration starten
+- [x] `app/api.py` — Guards: externe Zone kann keinem Sensor zugeordnet/genullt werden (400)
+- [x] `app/models.py` — `ZoneOut.occupancy` optional, `is_external`-Feld
+- [x] Dashboard + Config: „unknown"-Status (occupancy `null`), Extern-Kennzeichnung,
+      Config zusätzlich mit pretix-Sync-Status-Sektion
+- [x] `requirements.txt`, `.env.example`, `docker-compose.yml` — `httpx` + `PRETIX_*`-Variablen
+- [x] `CLAUDE.md` — neuer Abschnitt „pretix-Integration (optional)"
+- [x] Verifikation (Mock-Server, Negativtests siehe Session-Log)
+
 ## Offene Entscheidungen / Annahmen
 
 - Zeitstempel intern in **UTC**; Anzeige/CSV ggf. lokale Zone (noch festzulegen).
@@ -132,3 +147,14 @@ Hinweise:
   Kapazitäts-Validierung; Simulator leere-Sensorliste-Guard, geseedete RNG-Reihenfolge,
   Callback-Typannotationen, publish-wait beim Shutdown; ROADMAP-Doku (push-Schritt,
   pio-run-Dublette). E2E nach Fixes erneut grün.
+- 2026-06-18: Phase 7 umgesetzt — pretix-Checkin-Integration als optionale zweite
+  Zählquelle. Restgelände als „externe" Zone (`zones.is_external`), Belegung live aus
+  `pretix_gesamt − Σ(TOF-Zonen)` berechnet (`Store._external_occupancy`), automatisch
+  angelegt (`ensure_external_zone`) sobald alle `PRETIX_*`-Env-Variablen gesetzt sind.
+  Neuer Poller (`app/pretix.py` + `_pretix_poller` in `main.py`, analog Offline-Sweeper).
+  Guards gegen Sensor-Zuordnung/Nullung der externen Zone (400). Dashboard/Config zeigen
+  „unknown"-Status bei fehlendem Pretix-Wert, Extern-Kennzeichnung, Config zusätzlich
+  Sync-Status-Sektion. Verifiziert: Default deaktiviert (kein Poller/keine Zone), Mock-
+  HTTP-Server liefert `inside_count` → Restgelände-Wert korrekt, bewegt sich gegenläufig
+  zu echten Zonen, Kapazitäts-Warnlogik greift, Negativtests (Sensor-Zuordnung/Nullung →
+  400) grün, Fehlerfall behält letzten guten Wert + zeigt Fehlertext. Alle grün.

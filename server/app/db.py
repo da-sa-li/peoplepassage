@@ -24,10 +24,11 @@ from typing import Any, Callable, Optional
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS zones (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    name       TEXT NOT NULL,
-    capacity   INTEGER,
-    created_at REAL NOT NULL
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    name        TEXT NOT NULL,
+    capacity    INTEGER,
+    created_at  REAL NOT NULL,
+    is_external INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS sensors (
@@ -73,6 +74,15 @@ def _safe_put(queue: Any, payload: dict) -> None:
         pass
 
 
+def _ensure_column(conn: sqlite3.Connection, table: str, column: str, decl: str) -> None:
+    """Spalte zu einer bestehenden Tabelle hinzufügen, falls sie fehlt (einfache
+    Inline-Migration; `CREATE TABLE IF NOT EXISTS` ergänzt keine Spalten bei
+    bereits existierenden Tabellen aus älteren Server-Versionen)."""
+    cols = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})")}
+    if column not in cols:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {decl}")
+
+
 def _delta_for(direction: str) -> tuple[int, int]:
     """Liefert (delta_side_a, delta_side_b) für eine Durchgangsrichtung."""
     if direction == "a2b":
@@ -89,6 +99,7 @@ class Store:
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute("PRAGMA foreign_keys=ON")
         self._conn.executescript(SCHEMA)
+        _ensure_column(self._conn, "zones", "is_external", "INTEGER NOT NULL DEFAULT 0")
         self._conn.commit()
 
         self._lock = threading.RLock()
@@ -98,6 +109,12 @@ class Store:
         self._loop: Any = None
         self._subscribers: set[Any] = set()
         self.command_publisher: Optional[Callable[[str, str], None]] = None
+
+        # pretix-Checkin-Integration (optional, s. CLAUDE.md): zuletzt bekannter
+        # Gesamtwert "anwesende Personen laut Ticketkontrolle" für die externe Zone.
+        self._pretix_total: Optional[int] = None
+        self._pretix_updated_at: Optional[float] = None
+        self._pretix_error: Optional[str] = None
 
         self.recompute_occupancy()
 
@@ -139,41 +156,67 @@ class Store:
     def occupancy(self, zone_id: int) -> int:
         return self._occ.get(zone_id, 0)
 
+    def _external_occupancy(self, zone_id: int) -> Optional[int]:
+        """Belegung der externen (pretix-)Zone: Gesamtzahl laut Ticketkontrolle minus
+        Summe aller anderen Zonen. `None`, solange noch kein pretix-Wert vorliegt."""
+        if self._pretix_total is None:
+            return None
+        tracked = sum(v for k, v in self._occ.items() if k != zone_id)
+        return self._pretix_total - tracked
+
+    def _zone_row(self, r: sqlite3.Row) -> dict:
+        is_external = bool(r["is_external"])
+        occupancy = self._external_occupancy(r["id"]) if is_external else self._occ.get(r["id"], 0)
+        return {
+            "id": r["id"],
+            "name": r["name"],
+            "capacity": r["capacity"],
+            "occupancy": occupancy,
+            "is_external": is_external,
+        }
+
     # ------------------------------------------------------------------- Zonen
     def list_zones(self) -> list[dict]:
         with self._lock:
             rows = self._conn.execute(
-                "SELECT id, name, capacity FROM zones ORDER BY name"
+                "SELECT id, name, capacity, is_external FROM zones ORDER BY name"
             ).fetchall()
-            return [
-                {
-                    "id": r["id"],
-                    "name": r["name"],
-                    "capacity": r["capacity"],
-                    "occupancy": self._occ.get(r["id"], 0),
-                }
-                for r in rows
-            ]
+            return [self._zone_row(r) for r in rows]
 
     def get_zone(self, zone_id: int) -> Optional[dict]:
         with self._lock:
             r = self._conn.execute(
-                "SELECT id, name, capacity FROM zones WHERE id = ?", (zone_id,)
+                "SELECT id, name, capacity, is_external FROM zones WHERE id = ?", (zone_id,)
             ).fetchone()
             if r is None:
                 return None
-            return {
-                "id": r["id"],
-                "name": r["name"],
-                "capacity": r["capacity"],
-                "occupancy": self._occ.get(r["id"], 0),
-            }
+            return self._zone_row(r)
 
     def create_zone(self, name: str, capacity: Optional[int]) -> dict:
         with self._lock:
             cur = self._conn.execute(
                 "INSERT INTO zones (name, capacity, created_at) VALUES (?, ?, ?)",
                 (name, capacity, time.time()),
+            )
+            self._conn.commit()
+            zid = int(cur.lastrowid)
+            self._occ[zid] = 0
+        self._notify()
+        return self.get_zone(zid)  # type: ignore[return-value]
+
+    def ensure_external_zone(self, default_name: str) -> dict:
+        """Externe (pretix-)Zone idempotent sicherstellen: vorhandene zurückgeben,
+        sonst neu anlegen. Es kann höchstens eine externe Zone geben."""
+        with self._lock:
+            r = self._conn.execute(
+                "SELECT id, name, capacity, is_external FROM zones WHERE is_external = 1 LIMIT 1"
+            ).fetchone()
+            if r is not None:
+                return self._zone_row(r)
+            cur = self._conn.execute(
+                "INSERT INTO zones (name, capacity, created_at, is_external) "
+                "VALUES (?, NULL, ?, 1)",
+                (default_name, time.time()),
             )
             self._conn.commit()
             zid = int(cur.lastrowid)
@@ -391,6 +434,36 @@ class Store:
             self._notify()
         return changed
 
+    # --------------------------------------------------- pretix-Checkin-Integration
+    def set_pretix_total(self, count: int) -> None:
+        with self._lock:
+            self._pretix_total = count
+            self._pretix_updated_at = time.time()
+            self._pretix_error = None
+        self._notify()
+
+    def set_pretix_error(self, message: str) -> None:
+        """Letzten Fehler vermerken, ohne den letzten guten Wert zu verwerfen."""
+        with self._lock:
+            self._pretix_error = message
+        self._notify()
+
+    def pretix_sync_status(self) -> Optional[dict]:
+        with self._lock:
+            if self._pretix_total is None and self._pretix_error is None:
+                return None
+            tracked_sum = sum(self._occ.values())
+            remainder = (
+                self._pretix_total - tracked_sum if self._pretix_total is not None else None
+            )
+            return {
+                "total": self._pretix_total,
+                "tracked_sum": tracked_sum,
+                "remainder": remainder,
+                "updated_at": self._pretix_updated_at,
+                "error": self._pretix_error,
+            }
+
     # ----------------------------------------------------------- Kommandos
     def send_command(self, sensor_id: str, cmd: str) -> None:
         if self.command_publisher is None:
@@ -407,6 +480,7 @@ class Store:
             "ts": time.time(),
             "zones": self.list_zones(),
             "sensors": self.list_sensors(),
+            "pretix_sync": self.pretix_sync_status(),
         }
 
     def add_subscriber(self, queue: Any) -> None:

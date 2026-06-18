@@ -67,11 +67,13 @@ def reset_zone(
     store: Store = Depends(get_store),
     actor: str = Depends(require_auth),
 ) -> dict:
-    reason = payload.reason if payload else None
-    zone = store.reset_zone(zone_id, reason=reason, actor=actor)
-    if zone is None:
+    current = store.get_zone(zone_id)
+    if current is None:
         raise HTTPException(404, "Zone nicht gefunden")
-    return zone
+    if current["is_external"]:
+        raise HTTPException(400, "Externe Zone wird automatisch berechnet und kann nicht genullt werden")
+    reason = payload.reason if payload else None
+    return store.reset_zone(zone_id, reason=reason, actor=actor)
 
 
 # ------------------------------------------------------------------- Sensoren
@@ -91,8 +93,12 @@ def update_sensor(
 
     for side in ("side_a_zone_id", "side_b_zone_id"):
         zid = getattr(payload, side)
-        if side in fields and zid is not None and store.get_zone(zid) is None:
-            raise HTTPException(400, f"Zone {zid} existiert nicht")
+        if side in fields and zid is not None:
+            zone = store.get_zone(zid)
+            if zone is None:
+                raise HTTPException(400, f"Zone {zid} existiert nicht")
+            if zone["is_external"]:
+                raise HTTPException(400, "Externe Zone kann keinem Sensor zugeordnet werden")
 
     # Gleichheit gegen den effektiven Endzustand prüfen (auch wenn nur eine Seite
     # gepatcht wird), damit A und B nie dieselbe Zone werden.

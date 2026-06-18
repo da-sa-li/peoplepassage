@@ -81,6 +81,7 @@ server/
   app/api.py                 REST-Endpunkte
   app/auth.py                Einfacher Passwortschutz
   app/export.py              CSV-Aggregation (minutengenau)
+  app/pretix.py              pretix-Checkin-API-Client (optional, s. u.)
   app/web/                   Dashboard (Templates + static)
   requirements.txt
   Dockerfile
@@ -93,7 +94,8 @@ README.md
 
 ## Datenmodell (SQLite)
 
-- `zones(id, name, capacity NULLABLE, created_at)`
+- `zones(id, name, capacity NULLABLE, is_external INTEGER, created_at)` — `is_external`
+  markiert die berechnete pretix-„Restgelände"-Zone (s. u.), höchstens eine pro Installation
 - `sensors(id TEXT pk, name, side_a_zone_id NULLABLE, side_b_zone_id NULLABLE, baseline_mm,
   last_seen, online, rssi)`
 - `passages(id, sensor_id, ts_utc, direction CHECK('a2b'|'b2a'), seq)` — Roh-Eventlog,
@@ -102,6 +104,31 @@ README.md
 
 Belegung wird aus `passages` + `adjustments` berechnet (Live-Cache im Speicher, beim Start
 aus DB rekonstruiert).
+
+## pretix-Integration (optional)
+
+Die Ticketkontrolle läuft über pretix (Ein-/Auslass-Scans) und liefert damit eine zweite,
+unabhängige Zählquelle: die **Gesamtzahl aktuell anwesender Personen** auf dem ganzen
+Gelände (`inside_count` der Checkin-Liste, siehe
+[pretix-API-Doku](https://docs.pretix.eu/dev/api/resources/checkinlists.html)). Da die
+TOF-Sensoren nur Teilbereiche (Zonen) erfassen, ergibt die Differenz
+`pretix_gesamt − Σ(Belegung aller TOF-Zonen)` die Personenzahl außerhalb jeder
+sensorerfassten Zone ("Restgelände").
+
+- Umsetzung als **normale Zone** mit Flag `zones.is_external = 1`, damit Kapazität,
+  Grün/Orange/Rot-Logik und Anzeige auf Dashboard/Config ohne Sonderpfade funktionieren.
+- Belegung wird **nicht** aus Passages/Adjustments berechnet, sondern live aus
+  `pretix_gesamt − Σ(Belegung aller anderen Zonen)` (`Store._external_occupancy`).
+- Der Server legt die externe Zone automatisch an (`Store.ensure_external_zone`), sobald
+  alle `PRETIX_*`-Env-Variablen gesetzt sind; ohne sie bleibt das Feature deaktiviert.
+- Sensoren können dieser Zone nicht zugeordnet werden; "Nullen" ist deaktiviert (ergibt bei
+  einem berechneten Wert keinen Sinn).
+- Polling per `app/pretix.py` (`fetch_inside_count`, `Authorization: Token <api-token>`)
+  alle `PRETIX_POLL_INTERVAL_S` Sekunden (Default 30) — analog zum Offline-Sweeper-Pattern
+  in `app/main.py`.
+- **Einschränkung:** `app/export.py` aggregiert weiterhin nur aus `passages`/`adjustments`;
+  die externe Zone erscheint im CSV mit `ins=outs=net=0` und `occupancy_end=0`, da keine
+  eigenen Buchungen vorliegen — die pretix-Historie wird bewusst nicht mitgeloggt.
 
 ## MQTT-Topics
 
