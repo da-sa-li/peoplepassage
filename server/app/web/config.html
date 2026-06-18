@@ -57,14 +57,16 @@
     border-left-width: 4px; border-radius: 8px;
     padding: 10px 14px;
   }
-  .zone-row.ok   { border-left-color: var(--ok); }
-  .zone-row.warn { border-left-color: var(--warn); }
-  .zone-row.crit { border-left-color: var(--crit); }
+  .zone-row.ok      { border-left-color: var(--ok); }
+  .zone-row.warn    { border-left-color: var(--warn); }
+  .zone-row.crit    { border-left-color: var(--crit); }
+  .zone-row.unknown { border-left-color: var(--accent); }
   .zone-row-name { font-weight: 600; font-size: 14px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .zone-row-occ  { font-size: 22px; font-weight: 700; min-width: 3.5ch; text-align: right; font-variant-numeric: tabular-nums; }
-  .zone-row.ok   .zone-row-occ { color: var(--ok); }
-  .zone-row.warn .zone-row-occ { color: var(--warn); }
-  .zone-row.crit .zone-row-occ { color: var(--crit); }
+  .zone-row.ok      .zone-row-occ { color: var(--ok); }
+  .zone-row.warn    .zone-row-occ { color: var(--warn); }
+  .zone-row.crit    .zone-row-occ { color: var(--crit); }
+  .zone-row.unknown .zone-row-occ { color: var(--accent); }
   .zone-row-cap  { font-size: 12px; color: var(--muted); min-width: 7ch; text-align: right; }
   .zone-row-actions { display: flex; gap: 6px; flex-shrink: 0; }
 
@@ -107,6 +109,7 @@
   .pill { font-size: 11px; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
   .pill.on  { background: rgba(34,197,94,.15); color: var(--ok); }
   .pill.off { background: rgba(239,68,68,.15); color: var(--crit); }
+  .pill.ext { background: rgba(56,189,248,.15); color: var(--accent); }
 
   /* ---- Misc ---- */
   .muted { color: var(--muted); }
@@ -135,6 +138,12 @@
     <div id="zoneList" class="zone-list">
       <div class="empty">Noch keine Zonen angelegt.</div>
     </div>
+  </section>
+
+  <!-- pretix-Integration -->
+  <section>
+    <h2>pretix-Integration</h2>
+    <div id="pretixStatus" class="card"></div>
   </section>
 
   <!-- Zone hinzufügen -->
@@ -201,7 +210,7 @@
 </main>
 
 <script>
-let state = { zones: [], sensors: [] };
+let state = { zones: [], sensors: [], pretix_sync: null };
 
 function fmtTime(ts) {
   if (!ts) return "—";
@@ -209,11 +218,16 @@ function fmtTime(ts) {
 }
 
 function zoneStatus(z) {
+  if (z.occupancy == null) return "unknown";
   if (z.capacity == null || z.capacity === 0) return "ok";
   const r = z.occupancy / z.capacity;
   if (r >= 1.0) return "crit";
   if (r >= 0.8) return "warn";
   return "ok";
+}
+
+function occText(z) {
+  return z.occupancy == null ? "—" : String(z.occupancy);
 }
 
 function capText(z) {
@@ -255,6 +269,7 @@ function zoneSelect(selected, onChange) {
 function render() {
   renderZones();
   renderSensors();
+  renderPretix();
 }
 
 function renderZones() {
@@ -268,16 +283,47 @@ function renderZones() {
     const status = zoneStatus(z);
     const row = el("div", { cls: "zone-row " + status });
 
-    row.appendChild(el("div", { cls: "zone-row-name", text: z.name }));
-    row.appendChild(el("div", { cls: "zone-row-occ", text: String(z.occupancy) }));
+    const nameCell = el("div", { cls: "zone-row-name", text: z.name });
+    if (z.is_external) {
+      nameCell.appendChild(document.createTextNode(" "));
+      nameCell.appendChild(el("span", { cls: "pill ext", text: "Extern" }));
+    }
+    row.appendChild(nameCell);
+    row.appendChild(el("div", { cls: "zone-row-occ", text: occText(z) }));
     row.appendChild(el("div", { cls: "zone-row-cap", text: capText(z) }));
 
     const actions = el("div", { cls: "zone-row-actions" });
-    actions.appendChild(btn("Nullen", "danger", () => resetZone(z.id, z.name)));
+    if (!z.is_external) {
+      actions.appendChild(btn("Nullen", "danger", () => resetZone(z.id, z.name)));
+    }
     actions.appendChild(btn("Löschen", "danger", () => deleteZone(z.id, z.name)));
     row.appendChild(actions);
 
     list.appendChild(row);
+  }
+}
+
+function renderPretix() {
+  const box = document.getElementById("pretixStatus");
+  box.replaceChildren();
+  const sync = state.pretix_sync;
+  if (!sync) {
+    box.appendChild(el("div", { cls: "muted", text: "Nicht konfiguriert (siehe .env)." }));
+    return;
+  }
+  if (sync.total != null) {
+    box.appendChild(el("div", {
+      text: `Gesamt laut Ticketkontrolle: ${sync.total} · erfasst in Zonen: ${sync.tracked_sum} · Restgelände: ${sync.remainder}`,
+    }));
+  }
+  box.appendChild(el("div", {
+    cls: "muted", style: "font-size:12px;margin-top:6px",
+    text: "zuletzt synchronisiert: " + fmtTime(sync.updated_at),
+  }));
+  if (sync.error) {
+    box.appendChild(el("div", {
+      style: "color:var(--crit);font-size:12px;margin-top:4px", text: "Fehler: " + sync.error,
+    }));
   }
 }
 

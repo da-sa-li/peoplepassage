@@ -22,7 +22,8 @@ class ZoneOut(BaseModel):
     id: int
     name: str
     capacity: Optional[int] = None
-    occupancy: int
+    occupancy: Optional[int] = None
+    is_external: bool = False
 
 
 class SensorUpdate(BaseModel):
